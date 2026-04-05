@@ -9,6 +9,7 @@ import {
   ParseUUIDPipe,
   Post,
   Put,
+  Query,
 } from '@nestjs/common';
 import { CategoryService } from './app.service';
 import { CreateCategoryDto } from './dto/ceate-category.dto';
@@ -19,8 +20,11 @@ export class CategoryController {
   constructor(private readonly categoryService: CategoryService) {}
 
   @Get()
-  findAll() {
-    return this.categoryService.findAll();
+  findAll(
+    @Query('sortBy') sortBy?: string,
+    @Query('order') order?: string,
+  ) {
+    return this.categoryService.findAll(sortBy, order);
   }
 
   @Get(':id')

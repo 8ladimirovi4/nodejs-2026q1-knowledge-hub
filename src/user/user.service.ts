@@ -3,6 +3,8 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { USER_LIST_SORT_KEYS } from 'src/common/sorting/list-sort.keys';
+import { applyListSort } from 'src/common/sorting/list-sort.util';
 import * as bcrypt from 'bcrypt';
 import { randomUUID } from 'crypto';
 import type { User } from '../storage/domain.types';
@@ -17,8 +19,9 @@ export type PublicUser = Omit<User, 'password'>;
 export class UserService {
   constructor(private readonly storage: StorageFacade) {}
 
-  findAll(): PublicUser[] {
-    return this.storage.users.getAll().map((u) => this.toPublic(u));
+  findAll(sortBy?: string, order?: string): PublicUser[] {
+    const list = this.storage.users.getAll().map((u) => this.toPublic(u));
+    return applyListSort(list, sortBy, order, USER_LIST_SORT_KEYS);
   }
 
   findOne(id: string): PublicUser {

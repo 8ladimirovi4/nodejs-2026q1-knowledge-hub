@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import { CommentService } from './app.service';
 import { CreateCommentDto } from './dto/create-comment.dto';
+import { FindCommentsQueryDto } from './dto/find-comments.query.dto';
 
 @Controller('comment')
 export class CommentController {
@@ -19,9 +20,11 @@ export class CommentController {
 
   @Get()
   async findByArticle(
-    @Query('articleId', new ParseUUIDPipe({ version: '4' })) articleId: string,
+    @Query() query: FindCommentsQueryDto,
+    @Query('sortBy') sortBy?: string,
+    @Query('order') order?: string,
   ) {
-    return this.commentService.findByArticle(articleId);
+    return this.commentService.findByArticle(query.articleId, sortBy, order);
   }
 
   @Get(':id')

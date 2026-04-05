@@ -1,4 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { ARTICLE_LIST_SORT_KEYS } from 'src/common/sorting/list-sort.keys';
+import { applyListSort } from 'src/common/sorting/list-sort.util';
 import { ArticleStatus, type Article } from 'src/storage/domain.types';
 import { StorageFacade } from 'src/storage';
 import type { FindArticlesQueryDto } from './dto/find-articles.query.dto';
@@ -10,7 +12,11 @@ import { UpdateArticleDto } from './dto/update-article.dto';
 export class ArticleService {
   constructor(private readonly storage: StorageFacade) {}
 
-  async findAll(query: FindArticlesQueryDto): Promise<Article[]> {
+  async findAll(
+    query: FindArticlesQueryDto,
+    sortBy?: string,
+    order?: string,
+  ): Promise<Article[]> {
     let list = this.storage.articles.getAll();
     if (query.status !== undefined) {
       list = list.filter((a) => a.status === query.status);
@@ -21,7 +27,7 @@ export class ArticleService {
     if (query.tag !== undefined) {
       list = list.filter((a) => a.tags.includes(query.tag));
     }
-    return list;
+    return applyListSort(list, sortBy, order, ARTICLE_LIST_SORT_KEYS);
   }
   async findOne(id: string): Promise<Article> {
     const article = this.storage.articles.getById(id);

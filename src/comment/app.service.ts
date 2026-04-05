@@ -6,14 +6,21 @@ import {
 import { randomUUID } from 'crypto';
 import type { Comment } from 'src/storage/domain.types';
 import { StorageFacade } from 'src/storage';
+import { COMMENT_LIST_SORT_KEYS } from 'src/common/sorting/list-sort.keys';
+import { applyListSort } from 'src/common/sorting/list-sort.util';
 import { CreateCommentDto } from './dto/create-comment.dto';
 
 @Injectable()
 export class CommentService {
   constructor(private readonly storage: StorageFacade) {}
 
-  async findByArticle(articleId: string): Promise<Comment[]> {
-    return this.storage.comments.getByArticleId(articleId);
+  async findByArticle(
+    articleId: string,
+    sortBy?: string,
+    order?: string,
+  ): Promise<Comment[]> {
+    const list = this.storage.comments.getByArticleId(articleId);
+    return applyListSort(list, sortBy, order, COMMENT_LIST_SORT_KEYS);
   }
 
   async findOne(id: string): Promise<Comment> {

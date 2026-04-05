@@ -1,4 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { CATEGORY_LIST_SORT_KEYS } from 'src/common/sorting/list-sort.keys';
+import { applyListSort } from 'src/common/sorting/list-sort.util';
 import { randomUUID } from 'crypto';
 import type { Category } from 'src/storage/domain.types';
 import { StorageFacade } from 'src/storage';
@@ -9,8 +11,9 @@ import { UpdateCategoryDto } from './dto/update-category.dto';
 export class CategoryService {
   constructor(private readonly storage: StorageFacade) {}
 
-  findAll(): Category[] {
-    return this.storage.categories.getAll();
+  findAll(sortBy?: string, order?: string): Category[] {
+    const list = this.storage.categories.getAll();
+    return applyListSort(list, sortBy, order, CATEGORY_LIST_SORT_KEYS);
   }
 
   findOne(id: string): Category {

@@ -21,8 +21,12 @@ export class ArticleController {
   constructor(private readonly articleService: ArticleService) {}
 
   @Get()
-  findAll(@Query() query: FindArticlesQueryDto) {
-    return this.articleService.findAll(query);
+  findAll(
+    @Query() query: FindArticlesQueryDto,
+    @Query('sortBy') sortBy?: string,
+    @Query('order') order?: string,
+  ) {
+    return this.articleService.findAll(query, sortBy, order);
   }
 
   @Get(':id')
