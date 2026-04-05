@@ -11,6 +11,7 @@ import {
   Put,
   Query,
 } from '@nestjs/common';
+import { ApiOptionalListQueries } from 'src/common/swagger/list-query.decorator';
 import { CategoryService } from './app.service';
 import { CreateCategoryDto } from './dto/ceate-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
@@ -20,6 +21,7 @@ export class CategoryController {
   constructor(private readonly categoryService: CategoryService) {}
 
   @Get()
+  @ApiOptionalListQueries()
   findAll(
     @Query('sortBy') sortBy?: string,
     @Query('order') order?: string,

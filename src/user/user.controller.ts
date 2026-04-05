@@ -11,6 +11,7 @@ import {
   Put,
   Query,
 } from '@nestjs/common';
+import { ApiOptionalListQueries } from 'src/common/swagger/list-query.decorator';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdatePasswordDto } from './dto/update-password.dto';
 import { UserService } from './user.service';
@@ -20,6 +21,7 @@ export class UserController {
   constructor(private readonly userService: UserService) {}
 
   @Get()
+  @ApiOptionalListQueries()
   findAll(
     @Query('sortBy') sortBy?: string,
     @Query('order') order?: string,

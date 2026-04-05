@@ -11,6 +11,7 @@ import {
   Put,
   Query,
 } from '@nestjs/common';
+import { ApiOptionalListQueries } from 'src/common/swagger/list-query.decorator';
 import { ArticleService } from './app.service';
 import { FindArticlesQueryDto } from './dto/find-articles.query.dto';
 import { CreateArticleDto } from './dto/create-article.dto';
@@ -21,6 +22,7 @@ export class ArticleController {
   constructor(private readonly articleService: ArticleService) {}
 
   @Get()
+  @ApiOptionalListQueries()
   findAll(
     @Query() query: FindArticlesQueryDto,
     @Query('sortBy') sortBy?: string,

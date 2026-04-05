@@ -10,6 +10,7 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
+import { ApiOptionalListQueries } from 'src/common/swagger/list-query.decorator';
 import { CommentService } from './app.service';
 import { CreateCommentDto } from './dto/create-comment.dto';
 import { FindCommentsQueryDto } from './dto/find-comments.query.dto';
@@ -19,6 +20,7 @@ export class CommentController {
   constructor(private readonly commentService: CommentService) {}
 
   @Get()
+  @ApiOptionalListQueries()
   async findByArticle(
     @Query() query: FindCommentsQueryDto,
     @Query('sortBy') sortBy?: string,
