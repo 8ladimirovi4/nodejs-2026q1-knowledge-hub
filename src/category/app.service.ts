@@ -1,4 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  applyOptionalPagination,
+  type PaginatedList,
+} from 'src/common/pagination/apply-pagination.util';
 import { CATEGORY_LIST_SORT_KEYS } from 'src/common/sorting/list-sort.keys';
 import { applyListSort } from 'src/common/sorting/list-sort.util';
 import { randomUUID } from 'crypto';
@@ -11,9 +15,15 @@ import { UpdateCategoryDto } from './dto/update-category.dto';
 export class CategoryService {
   constructor(private readonly storage: StorageFacade) {}
 
-  findAll(sortBy?: string, order?: string): Category[] {
+  findAll(
+    sortBy?: string,
+    order?: string,
+    page?: string,
+    limit?: string,
+  ): Category[] | PaginatedList<Category> {
     const list = this.storage.categories.getAll();
-    return applyListSort(list, sortBy, order, CATEGORY_LIST_SORT_KEYS);
+    const sorted = applyListSort(list, sortBy, order, CATEGORY_LIST_SORT_KEYS);
+    return applyOptionalPagination(sorted, page, limit);
   }
 
   findOne(id: string): Category {

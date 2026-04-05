@@ -25,8 +25,10 @@ export class ArticleController {
     @Query() query: FindArticlesQueryDto,
     @Query('sortBy') sortBy?: string,
     @Query('order') order?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
   ) {
-    return this.articleService.findAll(query, sortBy, order);
+    return this.articleService.findAll(query, sortBy, order, page, limit);
   }
 
   @Get(':id')

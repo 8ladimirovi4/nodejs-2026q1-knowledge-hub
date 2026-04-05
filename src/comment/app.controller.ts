@@ -23,8 +23,16 @@ export class CommentController {
     @Query() query: FindCommentsQueryDto,
     @Query('sortBy') sortBy?: string,
     @Query('order') order?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
   ) {
-    return this.commentService.findByArticle(query.articleId, sortBy, order);
+    return this.commentService.findByArticle(
+      query.articleId,
+      sortBy,
+      order,
+      page,
+      limit,
+    );
   }
 
   @Get(':id')

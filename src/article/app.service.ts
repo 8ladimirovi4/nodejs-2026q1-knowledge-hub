@@ -1,4 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  applyOptionalPagination,
+  type PaginatedList,
+} from 'src/common/pagination/apply-pagination.util';
 import { ARTICLE_LIST_SORT_KEYS } from 'src/common/sorting/list-sort.keys';
 import { applyListSort } from 'src/common/sorting/list-sort.util';
 import { ArticleStatus, type Article } from 'src/storage/domain.types';
@@ -16,7 +20,9 @@ export class ArticleService {
     query: FindArticlesQueryDto,
     sortBy?: string,
     order?: string,
-  ): Promise<Article[]> {
+    page?: string,
+    limit?: string,
+  ): Promise<Article[] | PaginatedList<Article>> {
     let list = this.storage.articles.getAll();
     if (query.status !== undefined) {
       list = list.filter((a) => a.status === query.status);
@@ -27,7 +33,8 @@ export class ArticleService {
     if (query.tag !== undefined) {
       list = list.filter((a) => a.tags.includes(query.tag));
     }
-    return applyListSort(list, sortBy, order, ARTICLE_LIST_SORT_KEYS);
+    const sorted = applyListSort(list, sortBy, order, ARTICLE_LIST_SORT_KEYS);
+    return applyOptionalPagination(sorted, page, limit);
   }
   async findOne(id: string): Promise<Article> {
     const article = this.storage.articles.getById(id);

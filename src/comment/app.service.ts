@@ -6,6 +6,10 @@ import {
 import { randomUUID } from 'crypto';
 import type { Comment } from 'src/storage/domain.types';
 import { StorageFacade } from 'src/storage';
+import {
+  applyOptionalPagination,
+  type PaginatedList,
+} from 'src/common/pagination/apply-pagination.util';
 import { COMMENT_LIST_SORT_KEYS } from 'src/common/sorting/list-sort.keys';
 import { applyListSort } from 'src/common/sorting/list-sort.util';
 import { CreateCommentDto } from './dto/create-comment.dto';
@@ -18,9 +22,12 @@ export class CommentService {
     articleId: string,
     sortBy?: string,
     order?: string,
-  ): Promise<Comment[]> {
+    page?: string,
+    limit?: string,
+  ): Promise<Comment[] | PaginatedList<Comment>> {
     const list = this.storage.comments.getByArticleId(articleId);
-    return applyListSort(list, sortBy, order, COMMENT_LIST_SORT_KEYS);
+    const sorted = applyListSort(list, sortBy, order, COMMENT_LIST_SORT_KEYS);
+    return applyOptionalPagination(sorted, page, limit);
   }
 
   async findOne(id: string): Promise<Comment> {

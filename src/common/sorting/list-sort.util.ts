@@ -9,7 +9,6 @@ function singleQueryValue(v: unknown): string | undefined {
   return s === '' ? undefined : s;
 }
 
-/** Accepts raw Express query values (string | string[] | undefined). */
 export function normalizeListSort(
   sortBy?: string | string[],
   order?: string | string[],

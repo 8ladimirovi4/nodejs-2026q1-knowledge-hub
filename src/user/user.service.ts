@@ -3,6 +3,10 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import {
+  applyOptionalPagination,
+  type PaginatedList,
+} from 'src/common/pagination/apply-pagination.util';
 import { USER_LIST_SORT_KEYS } from 'src/common/sorting/list-sort.keys';
 import { applyListSort } from 'src/common/sorting/list-sort.util';
 import * as bcrypt from 'bcrypt';
@@ -19,9 +23,15 @@ export type PublicUser = Omit<User, 'password'>;
 export class UserService {
   constructor(private readonly storage: StorageFacade) {}
 
-  findAll(sortBy?: string, order?: string): PublicUser[] {
+  findAll(
+    sortBy?: string,
+    order?: string,
+    page?: string,
+    limit?: string,
+  ): PublicUser[] | PaginatedList<PublicUser> {
     const list = this.storage.users.getAll().map((u) => this.toPublic(u));
-    return applyListSort(list, sortBy, order, USER_LIST_SORT_KEYS);
+    const sorted = applyListSort(list, sortBy, order, USER_LIST_SORT_KEYS);
+    return applyOptionalPagination(sorted, page, limit);
   }
 
   findOne(id: string): PublicUser {

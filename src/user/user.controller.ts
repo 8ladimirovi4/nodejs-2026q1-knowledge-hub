@@ -23,8 +23,10 @@ export class UserController {
   findAll(
     @Query('sortBy') sortBy?: string,
     @Query('order') order?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
   ) {
-    return this.userService.findAll(sortBy, order);
+    return this.userService.findAll(sortBy, order, page, limit);
   }
 
   @Get(':id')

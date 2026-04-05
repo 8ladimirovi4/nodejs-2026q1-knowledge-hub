@@ -23,8 +23,10 @@ export class CategoryController {
   findAll(
     @Query('sortBy') sortBy?: string,
     @Query('order') order?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
   ) {
-    return this.categoryService.findAll(sortBy, order);
+    return this.categoryService.findAll(sortBy, order, page, limit);
   }
 
   @Get(':id')

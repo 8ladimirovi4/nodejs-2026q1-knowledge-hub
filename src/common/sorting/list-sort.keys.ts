@@ -1,5 +1,3 @@
-/** Allowed `sortBy` values per list endpoint (must match response JSON fields). */
-
 export const USER_LIST_SORT_KEYS = [
   'id',
   'login',
