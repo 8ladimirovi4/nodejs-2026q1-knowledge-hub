@@ -47,7 +47,7 @@ export class ArticleService {
     return article;
   }
 
-  async updateArticle(id: string, dto: UpdateArticleDto): Promise<Article> {
+  async update(id: string, dto: UpdateArticleDto): Promise<Article> {
     const article = this.storage.articles.getById(id);
     if (!article) {
       throw new NotFoundException();

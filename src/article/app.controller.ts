@@ -11,7 +11,7 @@ import {
   Put,
   Query,
 } from '@nestjs/common';
-import { ArticleService } from './article.servise';
+import { ArticleService } from './app.service';
 import { FindArticlesQueryDto } from './dto/find-articles.query.dto';
 import { CreateArticleDto } from './dto/create-article.dto';
 import { UpdateArticleDto } from './dto/update-article.dto';
@@ -41,7 +41,7 @@ export class ArticleController {
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
     @Body() dto: UpdateArticleDto,
   ) {
-    return this.articleService.updateArticle(id, dto);
+    return this.articleService.update(id, dto);
   }
 
   @Delete(':id')
