@@ -17,11 +17,7 @@ export const ARTICLE_LIST_SORT_KEYS = [
   'categoryId',
 ] as const;
 
-export const CATEGORY_LIST_SORT_KEYS = [
-  'id',
-  'name',
-  'description',
-] as const;
+export const CATEGORY_LIST_SORT_KEYS = ['id', 'name', 'description'] as const;
 
 export const COMMENT_LIST_SORT_KEYS = [
   'id',
