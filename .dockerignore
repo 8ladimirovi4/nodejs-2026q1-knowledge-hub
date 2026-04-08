@@ -1,0 +1,19 @@
+# Dependencies (installed in the image via npm ci / npm install)
+node_modules
+
+# Git — history and metadata not needed in build context
+.git
+
+# Logs and runtime output
+logs/
+*.log
+
+# Secrets and local env (must not ship in the image or build context)
+.env
+
+# Build artifacts (produced in Dockerfile)
+dist/
+
+# Editor and IDE settings
+.vscode/
+.idea/
