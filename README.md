@@ -33,6 +33,17 @@ The stack is defined in `docker-compose.yml` (NestJS app + PostgreSQL). Copy `.e
 
 Set **`PORT`** in `.env` for the HTTP port; it is used both by the application and for the host port mapping (default **4000**).
 
+Set **`ADMINER_PORT`** in `.env` for the **host** port of [Adminer](https://www.adminer.org/) when you use the `debug` Compose profile (default **8080**). The container still listens on port **8080** internally; Compose publishes it as `ADMINER_PORT` on your machine.
+
+### Docker Hub image
+
+The production application image is published on Docker Hub:
+
+- **Repository:** [vlleo/nodejs-2026q1-knowledge-hub-app](https://hub.docker.com/r/vlleo/nodejs-2026q1-knowledge-hub-app)
+- **Pull:** `docker pull vlleo/nodejs-2026q1-knowledge-hub-app:latest`
+
+To run the pre-built image together with PostgreSQL, point the `app` service in `docker-compose.yml` at this image (`image: …`) instead of `build`, keeping the same `.env` and `db` service as in this repository.
+
 ### `docker compose` vs `docker-compose`
 
 Modern **Docker Desktop** ships **Docker Compose V2** as a CLI **plugin**. You run it with a **space**:
@@ -49,11 +60,29 @@ To stop and remove containers:
 docker compose down
 ```
 
-Optional **Adminer** (database UI on port **8080**) is behind the `debug` profile:
+### Adminer (optional, local PostgreSQL UI)
+
+Adminer is **not** started by default. It is isolated behind the Compose **`debug`** profile so the usual `docker compose up` stack is only **app** + **db**.
+
+1. Ensure `.env` exists (from `.env.example`) and set **`ADMINER_PORT`** if you do not want the default **8080** on the host.
+2. Start the stack with the profile:
 
 ```bash
 docker compose --profile debug up --build
 ```
+
+3. Open Adminer in the browser: **`http://localhost:<ADMINER_PORT>/`** (for example `http://localhost:8080/` when `ADMINER_PORT=8080`).
+4. Log in to PostgreSQL:
+
+| Field | Value |
+|-------|--------|
+| **System** | PostgreSQL |
+| **Server** | `db` (Docker Compose service name for PostgreSQL on the internal network) |
+| **Username** | same as **`POSTGRES_USER`** in `.env` |
+| **Password** | same as **`POSTGRES_PASSWORD`** in `.env` |
+| **Database** | same as **`POSTGRES_DB`** in `.env` |
+
+Adminer is intended for **local debugging** (inspect schema, run SQL). Until the app uses PostgreSQL with migrations, the database may be empty.
 
 Open the API docs at `http://localhost:<PORT>/doc/` (for example `http://localhost:4000/doc/` when `PORT=4000`).
 
