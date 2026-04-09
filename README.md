@@ -60,6 +60,56 @@ To stop and remove containers:
 docker compose down
 ```
 
+### Verifying health checks (`docker compose ps`)
+
+Both **`app`** and **`db`** define `healthcheck` in `docker-compose.yml`. After the stack is running, check that Docker reports them as healthy:
+
+```bash
+docker compose up --build -d
+docker compose ps
+```
+
+In the **STATUS** (or **State**) column you should see **`healthy`** for **`app`** and **`db`** once probes have succeeded (allow a short time after startup; **`app`** uses `start_period: 40s`). If you see **`starting`**, wait and run `docker compose ps` again.
+
+This matches the course criterion that health checks are configured for both services. Optional detail:
+
+```bash
+docker inspect --format '{{.State.Health.Status}}' "$(docker compose ps -q app)"
+docker inspect --format '{{.State.Health.Status}}' "$(docker compose ps -q db)"
+```
+
+Expected output for each: **`healthy`**.
+
+### Verifying the application container runs as non-root
+
+The production **`Dockerfile`** creates user **`nestjs`** and ends with **`USER nestjs`**, so the API process must not run as **root** (course criterion: final application image runs as non-root).
+
+After Compose has started **`app`**:
+
+```bash
+docker compose up --build -d
+docker compose exec app whoami
+docker compose exec app id
+```
+
+You should see **`nestjs`** (or another **non-root** user) and a **UID that is not `0`** (not `root`).
+
+From the host, without exec:
+
+```bash
+docker inspect --format '{{.Config.User}}' "$(docker compose ps -q app)"
+```
+
+A **non-empty** value (e.g. `nestjs`) indicates the default user for the container is not root.
+
+To check the image directly after **`docker pull`** (or substitute your local tag, e.g. `nodejs-2026q1-knowledge-hub-app:latest`):
+
+```bash
+docker run --rm vlleo/nodejs-2026q1-knowledge-hub-app:latest id
+```
+
+Again, **UID must not be `0`**.
+
 ### Adminer (optional, local PostgreSQL UI)
 
 Adminer is **not** started by default. It is isolated behind the Compose **`debug`** profile so the usual `docker compose up` stack is only **app** + **db**.
