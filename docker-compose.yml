@@ -51,7 +51,7 @@ services:
     profiles:
       - debug
     ports:
-      - "8080:8080"
+      - "${ADMINER_PORT:-8080}:8080"
     networks:
       - knowledge-hub-net
     depends_on:
