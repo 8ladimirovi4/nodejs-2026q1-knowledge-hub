@@ -17,3 +17,5 @@ dist/
 # Editor and IDE settings
 .vscode/
 .idea/
+
+development_docs
