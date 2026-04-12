@@ -43,7 +43,7 @@ export class ArticleService {
       where,
       include: { tags: true },
     });
-    let list = rows.map(prismaArticleToDomain);
+    const list = rows.map(prismaArticleToDomain);
     const sorted = applyListSort(list, sortBy, order, ARTICLE_LIST_SORT_KEYS);
     return applyOptionalPagination(sorted, page, limit);
   }
@@ -65,9 +65,7 @@ export class ArticleService {
         id: randomUUID(),
         title: dto.title,
         content: dto.content,
-        status: domainArticleStatusToPrisma(
-          dto.status ?? ArticleStatus.DRAFT,
-        ),
+        status: domainArticleStatusToPrisma(dto.status ?? ArticleStatus.DRAFT),
         authorId: dto.authorId ?? null,
         categoryId: dto.categoryId ?? null,
         tags: {
