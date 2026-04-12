@@ -17,6 +17,31 @@ git clone {repository URL}
 npm install
 ```
 
+## Database (PostgreSQL + Prisma)
+
+The API uses **PostgreSQL** via **Prisma ORM**. Connection string is read from **`DATABASE_URL`** in `.env` (see `.env.example`). Copy `.env.example` to `.env` and set variables; for a local app talking to Postgres in Docker, use host **`localhost`** and port **`5432`** (when the `db` service publishes `5432:5432`).
+
+### npm scripts (`package.json`)
+
+| Script | Command | Purpose |
+|--------|---------|---------|
+| **`db:seed`** | `npm run db:seed` | Runs `npx prisma db seed` — fills the database with initial data from `prisma/seed.ts` (requires applied migrations and valid `DATABASE_URL`). |
+
+### Prisma CLI (run with `npx`)
+
+These are not separate npm scripts in this repo; use **`npx prisma …`** from the project root (with `.env` loaded — Prisma reads `DATABASE_URL` via `prisma.config.ts`).
+
+| Command | When to use |
+|---------|-------------|
+| `npx prisma generate` | After changing `prisma/schema.prisma` — regenerates the client in `generated/prisma`. |
+| `npx prisma migrate dev` | **Development:** create and apply a new migration from schema changes. |
+| `npx prisma migrate deploy` | **CI/production:** apply existing migrations from `prisma/migrations/`. |
+| `npx prisma migrate reset` | **Dev only:** drops the database, reapplies all migrations, runs seed (destructive). |
+| `npx prisma db seed` | Same as **`npm run db:seed`** — seed data. |
+| `npx prisma studio` | Open a browser UI to browse/edit tables. |
+
+Typical local workflow: start Postgres (`docker compose up -d db` or full stack) → set **`DATABASE_URL`** → `npx prisma migrate dev` → optional `npm run db:seed` → `npm run start:dev`.
+
 ## Running application
 
 ```
@@ -132,7 +157,7 @@ docker compose --profile debug up --build
 | **Password** | same as **`POSTGRES_PASSWORD`** in `.env` |
 | **Database** | same as **`POSTGRES_DB`** in `.env` |
 
-Adminer is intended for **local debugging** (inspect schema, run SQL). Until the app uses PostgreSQL with migrations, the database may be empty.
+Adminer is intended for **local debugging** (inspect schema, run SQL). After running **Prisma migrations** (and optionally **`npm run db:seed`**), tables and data will appear here.
 
 Open the API docs at `http://localhost:<PORT>/doc/` (for example `http://localhost:4000/doc/` when `PORT=4000`).
 
