@@ -1,8 +1,8 @@
-import type { Prisma } from '../../generated/prisma/client';
+import type { Prisma } from '../generated-prisma';
 import {
   ArticleStatus as PrismaArticleStatus,
   UserRole as PrismaUserRole,
-} from '../../generated/prisma/enums';
+} from '../generated-prisma';
 import {
   ArticleStatus,
   type Article,
