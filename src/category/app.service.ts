@@ -7,67 +7,66 @@ import { CATEGORY_LIST_SORT_KEYS } from 'src/common/sorting/list-sort.keys';
 import { applyListSort } from 'src/common/sorting/list-sort.util';
 import { randomUUID } from 'crypto';
 import type { Category } from 'src/storage/domain.types';
-import { StorageFacade } from 'src/storage';
+import { prismaCategoryToDomain } from 'src/storage/prisma-mappers';
+import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateCategoryDto } from './dto/ceate-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 
 @Injectable()
 export class CategoryService {
-  constructor(private readonly storage: StorageFacade) {}
+  constructor(private readonly prisma: PrismaService) {}
 
-  findAll(
+  async findAll(
     sortBy?: string,
     order?: string,
     page?: string,
     limit?: string,
-  ): Category[] | PaginatedList<Category> {
-    const list = this.storage.categories.getAll();
+  ): Promise<Category[] | PaginatedList<Category>> {
+    const rows = await this.prisma.category.findMany();
+    const list = rows.map(prismaCategoryToDomain);
     const sorted = applyListSort(list, sortBy, order, CATEGORY_LIST_SORT_KEYS);
     return applyOptionalPagination(sorted, page, limit);
   }
 
-  findOne(id: string): Category {
-    const category = this.storage.categories.getById(id);
-    if (!category) {
+  async findOne(id: string): Promise<Category> {
+    const row = await this.prisma.category.findUnique({ where: { id } });
+    if (!row) {
       throw new NotFoundException();
     }
-    return category;
+    return prismaCategoryToDomain(row);
   }
 
-  create(dto: CreateCategoryDto): Category {
-    const category: Category = {
-      id: randomUUID(),
-      name: dto.name,
-      description: dto.description,
-    };
-    this.storage.categories.upsert(category);
-    return category;
+  async create(dto: CreateCategoryDto): Promise<Category> {
+    const row = await this.prisma.category.create({
+      data: {
+        id: randomUUID(),
+        name: dto.name,
+        description: dto.description,
+      },
+    });
+    return prismaCategoryToDomain(row);
   }
 
-  update(id: string, dto: UpdateCategoryDto): Category {
-    const category = this.storage.categories.getById(id);
-    if (!category) {
+  async update(id: string, dto: UpdateCategoryDto): Promise<Category> {
+    const existing = await this.prisma.category.findUnique({ where: { id } });
+    if (!existing) {
       throw new NotFoundException();
     }
-    const updated: Category = {
-      ...category,
-      name: dto.name ?? category.name,
-      description: dto.description ?? category.description,
-    };
-    this.storage.categories.upsert(updated);
-    return updated;
+    const row = await this.prisma.category.update({
+      where: { id },
+      data: {
+        name: dto.name ?? existing.name,
+        description: dto.description ?? existing.description,
+      },
+    });
+    return prismaCategoryToDomain(row);
   }
 
-  remove(id: string): void {
-    const category = this.storage.categories.getById(id);
-    if (!category) {
+  async remove(id: string): Promise<void> {
+    const exists = await this.prisma.category.findUnique({ where: { id } });
+    if (!exists) {
       throw new NotFoundException();
     }
-    for (const article of this.storage.articles.getAll()) {
-      if (article.categoryId === id) {
-        this.storage.articles.upsert({ ...article, categoryId: null });
-      }
-    }
-    this.storage.categories.delete(id);
+    await this.prisma.category.delete({ where: { id } });
   }
 }

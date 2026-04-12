@@ -11,9 +11,10 @@ import { ArticleModule } from './article/app.module';
 import { CategoryModule } from './category/app.module';
 import { CommentModule } from './comment/app.module';
 import { UserModule } from './user/user.module';
+import { PrismaModule } from './prisma/prisma.module';
 
 @Module({
-  imports: [UserModule, ArticleModule, CategoryModule, CommentModule],
+  imports: [PrismaModule, UserModule, ArticleModule, CategoryModule, CommentModule],
   controllers: [AppController],
   providers: [AppService, HttpContextMiddleware],
 })

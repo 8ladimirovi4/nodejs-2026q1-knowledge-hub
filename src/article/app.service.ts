@@ -6,7 +6,12 @@ import {
 import { ARTICLE_LIST_SORT_KEYS } from 'src/common/sorting/list-sort.keys';
 import { applyListSort } from 'src/common/sorting/list-sort.util';
 import { ArticleStatus, type Article } from 'src/storage/domain.types';
-import { StorageFacade } from 'src/storage';
+import {
+  domainArticleStatusToPrisma,
+  prismaArticleToDomain,
+} from 'src/storage/prisma-mappers';
+import { PrismaService } from 'src/prisma/prisma.service';
+import type { Prisma } from '../../generated/prisma/client';
 import type { FindArticlesQueryDto } from './dto/find-articles.query.dto';
 import { CreateArticleDto } from './dto/create-article.dto';
 import { randomUUID } from 'crypto';
@@ -14,7 +19,7 @@ import { UpdateArticleDto } from './dto/update-article.dto';
 
 @Injectable()
 export class ArticleService {
-  constructor(private readonly storage: StorageFacade) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async findAll(
     query: FindArticlesQueryDto,
@@ -23,73 +28,123 @@ export class ArticleService {
     page?: string,
     limit?: string,
   ): Promise<Article[] | PaginatedList<Article>> {
-    let list = this.storage.articles.getAll();
+    const where: Prisma.ArticleWhereInput = {};
     if (query.status !== undefined) {
-      list = list.filter((a) => a.status === query.status);
+      where.status = domainArticleStatusToPrisma(query.status);
     }
     if (query.categoryId !== undefined) {
-      list = list.filter((a) => a.categoryId === query.categoryId);
+      where.categoryId = query.categoryId;
     }
     if (query.tag !== undefined) {
-      list = list.filter((a) => a.tags.includes(query.tag));
+      where.tags = { some: { name: query.tag } };
     }
+
+    const rows = await this.prisma.article.findMany({
+      where,
+      include: { tags: true },
+    });
+    let list = rows.map(prismaArticleToDomain);
     const sorted = applyListSort(list, sortBy, order, ARTICLE_LIST_SORT_KEYS);
     return applyOptionalPagination(sorted, page, limit);
   }
+
   async findOne(id: string): Promise<Article> {
-    const article = this.storage.articles.getById(id);
-    if (!article) {
+    const row = await this.prisma.article.findUnique({
+      where: { id },
+      include: { tags: true },
+    });
+    if (!row) {
       throw new NotFoundException();
     }
-    return article;
+    return prismaArticleToDomain(row);
   }
-  create(dto: CreateArticleDto): Article {
-    const now = Date.now();
-    const article: Article = {
-      id: randomUUID(),
-      title: dto.title,
-      content: dto.content,
-      status: dto.status ?? ArticleStatus.DRAFT,
-      authorId: dto.authorId ?? null,
-      categoryId: dto.categoryId ?? null,
-      tags: dto.tags ?? [],
-      createdAt: now,
-      updatedAt: now,
-    };
-    this.storage.articles.upsert(article);
-    return article;
+
+  async create(dto: CreateArticleDto): Promise<Article> {
+    const row = await this.prisma.article.create({
+      data: {
+        id: randomUUID(),
+        title: dto.title,
+        content: dto.content,
+        status: domainArticleStatusToPrisma(
+          dto.status ?? ArticleStatus.DRAFT,
+        ),
+        authorId: dto.authorId ?? null,
+        categoryId: dto.categoryId ?? null,
+        tags: {
+          connectOrCreate: (dto.tags ?? []).map((name) => ({
+            where: { name },
+            create: { name },
+          })),
+        },
+      },
+      include: { tags: true },
+    });
+    return prismaArticleToDomain(row);
   }
 
   async update(id: string, dto: UpdateArticleDto): Promise<Article> {
-    const article = this.storage.articles.getById(id);
-    if (!article) {
+    const existing = await this.prisma.article.findUnique({
+      where: { id },
+      include: { tags: true },
+    });
+    if (!existing) {
       throw new NotFoundException();
     }
-    const updated: Article = {
-      ...article,
-      title: dto.title ?? article.title,
-      content: dto.content ?? article.content,
-      status: dto.status ?? article.status,
-      categoryId:
-        dto.categoryId !== undefined ? dto.categoryId : article.categoryId,
-      tags: dto.tags ?? article.tags,
-      authorId: article.authorId,
-      updatedAt: Date.now(),
-    };
-    this.storage.articles.upsert(updated);
-    return updated;
+
+    await this.prisma.$transaction(async (tx) => {
+      const data: Prisma.ArticleUpdateInput = {};
+      if (dto.title !== undefined) {
+        data.title = dto.title;
+      }
+      if (dto.content !== undefined) {
+        data.content = dto.content;
+      }
+      if (dto.status !== undefined) {
+        data.status = domainArticleStatusToPrisma(dto.status);
+      }
+      if (dto.categoryId !== undefined) {
+        if (dto.categoryId === null) {
+          data.category = { disconnect: true };
+        } else {
+          data.category = { connect: { id: dto.categoryId } };
+        }
+      }
+
+      if (Object.keys(data).length > 0) {
+        await tx.article.update({ where: { id }, data });
+      }
+
+      if (dto.tags !== undefined) {
+        await tx.article.update({
+          where: { id },
+          data: { tags: { set: [] } },
+        });
+        await tx.article.update({
+          where: { id },
+          data: {
+            tags: {
+              connectOrCreate: dto.tags.map((name) => ({
+                where: { name },
+                create: { name },
+              })),
+            },
+          },
+        });
+      }
+    });
+
+    const row = await this.prisma.article.findUniqueOrThrow({
+      where: { id },
+      include: { tags: true },
+    });
+    return prismaArticleToDomain(row);
   }
 
-  remove(id: string): void {
-    const article = this.storage.articles.getById(id);
-    if (!article) {
+  async remove(id: string): Promise<void> {
+    const exists = await this.prisma.article.findUnique({ where: { id } });
+    if (!exists) {
       throw new NotFoundException();
     }
-    for (const comment of this.storage.comments.getAll()) {
-      if (comment.articleId === id) {
-        this.storage.comments.delete(comment.id);
-      }
-    }
-    this.storage.articles.delete(id);
+    await this.prisma.article.delete({ where: { id } });
   }
 }

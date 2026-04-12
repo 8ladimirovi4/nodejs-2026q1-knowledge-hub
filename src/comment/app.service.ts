@@ -5,7 +5,8 @@ import {
 } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import type { Comment } from 'src/storage/domain.types';
-import { StorageFacade } from 'src/storage';
+import { prismaCommentToDomain } from 'src/storage/prisma-mappers';
+import { PrismaService } from 'src/prisma/prisma.service';
 import {
   applyOptionalPagination,
   type PaginatedList,
@@ -16,7 +17,7 @@ import { CreateCommentDto } from './dto/create-comment.dto';
 
 @Injectable()
 export class CommentService {
-  constructor(private readonly storage: StorageFacade) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async findByArticle(
     articleId: string,
@@ -25,40 +26,45 @@ export class CommentService {
     page?: string,
     limit?: string,
   ): Promise<Comment[] | PaginatedList<Comment>> {
-    const list = this.storage.comments.getByArticleId(articleId);
+    const rows = await this.prisma.comment.findMany({
+      where: { articleId },
+    });
+    const list = rows.map(prismaCommentToDomain);
     const sorted = applyListSort(list, sortBy, order, COMMENT_LIST_SORT_KEYS);
     return applyOptionalPagination(sorted, page, limit);
   }
 
   async findOne(id: string): Promise<Comment> {
-    const comment = this.storage.comments.getById(id);
-    if (!comment) {
+    const row = await this.prisma.comment.findUnique({ where: { id } });
+    if (!row) {
       throw new NotFoundException();
     }
-    return comment;
+    return prismaCommentToDomain(row);
   }
 
   async create(dto: CreateCommentDto): Promise<Comment> {
-    if (!this.storage.articles.getById(dto.articleId)) {
+    const article = await this.prisma.article.findUnique({
+      where: { id: dto.articleId },
+    });
+    if (!article) {
       throw new UnprocessableEntityException();
     }
-    const now = Date.now();
-    const comment: Comment = {
-      id: randomUUID(),
-      content: dto.content,
-      articleId: dto.articleId,
-      authorId: dto.authorId ?? null,
-      createdAt: now,
-    };
-    this.storage.comments.upsert(comment);
-    return comment;
+    const row = await this.prisma.comment.create({
+      data: {
+        id: randomUUID(),
+        content: dto.content,
+        articleId: dto.articleId,
+        authorId: dto.authorId ?? null,
+      },
+    });
+    return prismaCommentToDomain(row);
   }
 
   async remove(id: string): Promise<void> {
-    const comment = this.storage.comments.getById(id);
-    if (!comment) {
+    const exists = await this.prisma.comment.findUnique({ where: { id } });
+    if (!exists) {
       throw new NotFoundException();
     }
-    this.storage.comments.delete(id);
+    await this.prisma.comment.delete({ where: { id } });
   }
 }
