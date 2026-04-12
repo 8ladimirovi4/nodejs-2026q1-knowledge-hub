@@ -39,3 +39,4 @@ lerna-debug.log*
 
 # devtools
 development_docs
+/generated/prisma
