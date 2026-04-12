@@ -24,11 +24,15 @@ COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
 COPY --from=build /app/dist ./dist
+COPY --from=build /app/prisma ./prisma
+COPY --from=build /app/prisma.config.ts ./prisma.config.ts
+COPY docker-entrypoint.sh /app/docker-entrypoint.sh
 
-RUN chown -R nestjs:nodejs /app
+RUN chmod +x /app/docker-entrypoint.sh \
+  && chown -R nestjs:nodejs /app
 
 USER nestjs
 
 EXPOSE 4000
 
-CMD ["node", "dist/main.js"]
+CMD ["/app/docker-entrypoint.sh"]
