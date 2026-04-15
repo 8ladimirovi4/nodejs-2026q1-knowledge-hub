@@ -35,7 +35,7 @@ These are not separate npm scripts in this repo; use **`npx prisma …`** from t
 
 | Command                     | When to use                                                                           |
 | ----------------------------- | --------------------------------------------------------------------------------------- |
-| `npx prisma generate`       | After changing`prisma/schema.prisma` — regenerates the client in `generated/prisma`. |
+| `npx prisma generate`       | After changing `prisma/schema.prisma` — regenerates the Prisma client (`@prisma/client`). |
 | `npx prisma migrate dev`    | **Development:** create and apply a new migration from schema changes.                |
 | `npx prisma migrate deploy` | **CI/production:** apply existing migrations from `prisma/migrations/`.               |
 | `npx prisma migrate reset`  | **Dev only:** drops the database, reapplies all migrations, runs seed (destructive).  |

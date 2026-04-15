@@ -39,4 +39,6 @@ lerna-debug.log*
 
 # devtools
 development_docs
-/generated/prisma
+
+# Prisma / codegen (если когда-то снова зададут custom output)
+/generated

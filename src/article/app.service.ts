@@ -11,7 +11,7 @@ import {
   prismaArticleToDomain,
 } from 'src/storage/prisma-mappers';
 import { PrismaService } from 'src/prisma/prisma.service';
-import type { Prisma } from 'src/generated-prisma';
+import type { Prisma } from '@prisma/client';
 import type { FindArticlesQueryDto } from './dto/find-articles.query.dto';
 import { CreateArticleDto } from './dto/create-article.dto';
 import { randomUUID } from 'crypto';

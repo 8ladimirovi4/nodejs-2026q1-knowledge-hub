@@ -1,8 +1,8 @@
-import type { Prisma } from '../generated-prisma';
+import type { Prisma } from '@prisma/client';
 import {
   ArticleStatus as PrismaArticleStatus,
   UserRole as PrismaUserRole,
-} from '../generated-prisma';
+} from '@prisma/client';
 import {
   ArticleStatus,
   type Article,
