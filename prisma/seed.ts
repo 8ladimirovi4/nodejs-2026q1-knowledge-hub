@@ -1,9 +1,17 @@
 import 'dotenv/config';
-import bcrypt from 'bcryptjs';
+import * as bcrypt from 'bcryptjs';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { ArticleStatus, PrismaClient, UserRole } from '@prisma/client';
 
-const SALT_ROUNDS = 10;
+function requireSaltRounds(): number {
+  const raw = process.env.CRYPT_SALT;
+  const effective = raw === undefined || raw === '' ? '10' : raw;
+  const n = Number(effective);
+  if (!Number.isInteger(n) || n < 1) {
+    throw new Error('CRYPT_SALT must be a positive integer');
+  }
+  return n;
+}
 
 function requireDatabaseUrl(): string {
   const url = process.env.DATABASE_URL;
@@ -19,6 +27,8 @@ async function main(): Promise<void> {
   });
   const prisma = new PrismaClient({ adapter });
 
+  const saltRounds = requireSaltRounds();
+
   try {
     await prisma.$transaction(async (tx) => {
       await tx.comment.deleteMany();
@@ -27,8 +37,8 @@ async function main(): Promise<void> {
       await tx.category.deleteMany();
       await tx.user.deleteMany();
 
-      const passwordAdmin = await bcrypt.hash('admin123', SALT_ROUNDS);
-      const passwordEditor = await bcrypt.hash('editor123', SALT_ROUNDS);
+      const passwordAdmin = await bcrypt.hash('admin123', saltRounds);
+      const passwordEditor = await bcrypt.hash('editor123', saltRounds);
 
       const admin = await tx.user.create({
         data: {
