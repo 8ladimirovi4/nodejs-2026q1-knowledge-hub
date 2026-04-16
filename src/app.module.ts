@@ -12,6 +12,7 @@ import { CategoryModule } from './category/app.module';
 import { CommentModule } from './comment/app.module';
 import { UserModule } from './user/user.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { AuthModule } from './auth/auth.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { PrismaModule } from './prisma/prisma.module';
     ArticleModule,
     CategoryModule,
     CommentModule,
+    AuthModule,
   ],
   controllers: [AppController],
   providers: [AppService, HttpContextMiddleware],

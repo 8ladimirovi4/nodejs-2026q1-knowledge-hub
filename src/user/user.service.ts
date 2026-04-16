@@ -9,7 +9,7 @@ import {
 } from 'src/common/pagination/apply-pagination.util';
 import { USER_LIST_SORT_KEYS } from 'src/common/sorting/list-sort.keys';
 import { applyListSort } from 'src/common/sorting/list-sort.util';
-import * as bcrypt from 'bcrypt';
+import * as bcrypt from 'bcryptjs';
 import { randomUUID } from 'crypto';
 import type { User } from '../storage/domain.types';
 import { UserRole } from '../storage/domain.types';
