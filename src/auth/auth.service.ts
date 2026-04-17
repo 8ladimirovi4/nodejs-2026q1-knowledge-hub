@@ -14,6 +14,7 @@ import * as bcrypt from 'bcryptjs';
 import { RefreshTokenDto } from './dto/refreshTokenDto';
 import { UserService } from 'src/user/user.service';
 import { prismaRoleToDomain } from 'src/storage';
+import type { JwtAccessPayload } from './types/jwt-access-payload.interface';
 
 @Injectable()
 export class AuthService {
@@ -23,6 +24,15 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
   ) {}
+
+  validateAccessToken(token: string): JwtAccessPayload {
+    try {
+      return this.jwtService.verify<JwtAccessPayload>(token);
+    } catch {
+      throw new UnauthorizedException('Invalid or expired access token');
+    }
+  }
+
   async signup(dto: AuthDto) {
     const existing = await this.prisma.user.findUnique({
       where: { login: dto.login },
