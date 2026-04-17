@@ -54,6 +54,18 @@ After starting the app on port (4000 as default) you can open
 in your browser OpenAPI documentation by typing http://localhost:4000/doc/.
 For more information about OpenAPI/Swagger please visit https://swagger.io/.
 
+### Swagger UI and JWT (Bearer token)
+
+Protected routes expect the header `Authorization: Bearer <access_token>`. Swagger does not add it automatically; you must authorize once per session (authorization may persist across reloads).
+
+1. Call **`POST /auth/login`** with `{ "login": "...", "password": "..." }` and copy **`accessToken`** from the JSON response.
+2. Click **Authorize** (top of the Swagger UI page).
+3. In the **`access-token`** field, paste **only** the JWT string (do **not** prefix with `Bearer` and do **not** wrap in quotes).
+4. Click **Authorize**, then **Close**.
+5. Use **Try it out** → **Execute** on any protected operation (for example **`GET /user`**). The generated **curl** and the browser request should include `-H 'Authorization: Bearer …'`.
+
+Public routes (`/auth/signup`, `/auth/login`, `/auth/refresh`, `/`, `/doc`) do not require a token.
+
 ## Docker
 
 The stack is defined in `docker-compose.yml` (NestJS app + PostgreSQL). Copy `.env.example` to `.env` and adjust variables as needed.
