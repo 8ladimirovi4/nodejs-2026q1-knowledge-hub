@@ -11,11 +11,13 @@ import {
   Put,
   Query,
 } from '@nestjs/common';
+import { ApiBearerAuth } from '@nestjs/swagger';
 import { ApiOptionalListQueries } from 'src/common/swagger/list-query.decorator';
 import { CategoryService } from './app.service';
 import { CreateCategoryDto } from './dto/ceate-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 
+@ApiBearerAuth('access-token')
 @Controller('category')
 export class CategoryController {
   constructor(private readonly categoryService: CategoryService) {}

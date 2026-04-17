@@ -11,12 +11,14 @@ import {
   Put,
   Query,
 } from '@nestjs/common';
+import { ApiBearerAuth } from '@nestjs/swagger';
 import { ApiOptionalListQueries } from 'src/common/swagger/list-query.decorator';
 import { ArticleService } from './app.service';
 import { FindArticlesQueryDto } from './dto/find-articles.query.dto';
 import { CreateArticleDto } from './dto/create-article.dto';
 import { UpdateArticleDto } from './dto/update-article.dto';
 
+@ApiBearerAuth('access-token')
 @Controller('article')
 export class ArticleController {
   constructor(private readonly articleService: ArticleService) {}

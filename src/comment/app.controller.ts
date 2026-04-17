@@ -10,11 +10,13 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
+import { ApiBearerAuth } from '@nestjs/swagger';
 import { ApiOptionalListQueries } from 'src/common/swagger/list-query.decorator';
 import { CommentService } from './app.service';
 import { CreateCommentDto } from './dto/create-comment.dto';
 import { FindCommentsQueryDto } from './dto/find-comments.query.dto';
 
+@ApiBearerAuth('access-token')
 @Controller('comment')
 export class CommentController {
   constructor(private readonly commentService: CommentService) {}
