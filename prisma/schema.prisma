@@ -25,7 +25,7 @@ model User {
   id        String   @id @default(uuid())
   login     String   @unique
   password  String
-  role      UserRole
+  role      UserRole @default(VIEWER)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

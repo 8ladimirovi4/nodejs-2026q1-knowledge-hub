@@ -93,7 +93,7 @@ export class UserService {
     });
   }
 
-  private toPublic(user: User): PublicUser {
+  toPublic(user: User): PublicUser {
     return {
       id: user.id,
       login: user.login,
