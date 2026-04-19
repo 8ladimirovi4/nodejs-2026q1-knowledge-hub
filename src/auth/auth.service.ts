@@ -45,8 +45,7 @@ export class AuthService {
         'no login or password, or they are not strings, or login is already taken',
       );
     }
-    await this.userService.create(dto);
-    return { message: 'User created successfully' };
+    return this.userService.create(dto);
   }
   async login(dto: AuthDto) {
     const user = await this.prisma.user.findUnique({
