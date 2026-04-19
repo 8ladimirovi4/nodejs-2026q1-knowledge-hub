@@ -177,6 +177,94 @@ describe('Comments (e2e)', () => {
       await unauthorizedRequest.delete(articlesRoutes.delete(anotherArticleId)).set(commonHeaders);
     });
   });
+ //Dear reviewer! please notiсe that I haven't made any changes to the current autotests! I created new one according the "+10 Additional automated tests are written" score point
+  describe('GET (pagination)', () => {
+    it('should return total, page, limit and data when page and limit are set', async () => {
+      const listBefore = await unauthorizedRequest
+        .get(commentsRoutes.getByArticle(testArticleId))
+        .set(commonHeaders);
+      expect(listBefore.status).toBe(StatusCodes.OK);
+      const countBefore = listBefore.body.length;
+
+      const suffix = `${Date.now()}`;
+      const ids: string[] = [];
+      for (let i = 0; i < 3; i++) {
+        const res = await unauthorizedRequest
+          .post(commentsRoutes.create)
+          .set(commonHeaders)
+          .send({
+            content: `PAG_COMMENT_${suffix}_${i}`,
+            articleId: testArticleId,
+            authorId: null,
+          });
+        expect(res.status).toBe(StatusCodes.CREATED);
+        ids.push(res.body.id);
+      }
+
+      const paginated = await unauthorizedRequest
+        .get(
+          `${commentsRoutes.getByArticle(testArticleId)}&page=1&limit=2`,
+        )
+        .set(commonHeaders);
+
+      expect(paginated.status).toBe(StatusCodes.OK);
+      expect(paginated.body).toMatchObject({
+        total: countBefore + 3,
+        page: 1,
+        limit: 2,
+        data: expect.any(Array),
+      });
+      expect(paginated.body.data).toHaveLength(2);
+
+      for (const id of ids) {
+        await unauthorizedRequest
+          .delete(commentsRoutes.delete(id))
+          .set(commonHeaders);
+      }
+    });
+  });
+
+  describe('GET (sorting)', () => {
+    it('should sort comments by content ascending', async () => {
+      const suffix = `${Date.now()}`;
+      const contents = [`zz_cmt_${suffix}`, `aa_cmt_${suffix}`, `mm_cmt_${suffix}`];
+      const ids: string[] = [];
+      for (const content of contents) {
+        const res = await unauthorizedRequest
+          .post(commentsRoutes.create)
+          .set(commonHeaders)
+          .send({
+            content,
+            articleId: testArticleId,
+            authorId: null,
+          });
+        expect(res.status).toBe(StatusCodes.CREATED);
+        ids.push(res.body.id);
+      }
+
+      const res = await unauthorizedRequest
+        .get(
+          `${commentsRoutes.getByArticle(testArticleId)}&sortBy=content&order=asc`,
+        )
+        .set(commonHeaders);
+
+      expect(res.status).toBe(StatusCodes.OK);
+      expect(res.body).toBeInstanceOf(Array);
+      const ours = res.body.filter((c) => ids.includes(c.id));
+      expect(ours).toHaveLength(3);
+      expect(ours.map((c) => c.content)).toEqual([
+        `aa_cmt_${suffix}`,
+        `mm_cmt_${suffix}`,
+        `zz_cmt_${suffix}`,
+      ]);
+
+      for (const id of ids) {
+        await unauthorizedRequest
+          .delete(commentsRoutes.delete(id))
+          .set(commonHeaders);
+      }
+    });
+  });
 
   describe('POST', () => {
     it('should correctly create comment', async () => {

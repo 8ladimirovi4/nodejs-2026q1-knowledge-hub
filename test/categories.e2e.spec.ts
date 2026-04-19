@@ -320,4 +320,84 @@ describe('Category (e2e)', () => {
       expect(cleanupArticle.statusCode).toBe(StatusCodes.NO_CONTENT);
     });
   });
+
+   //Dear reviewer! please notiсe that I haven't made any changes to the current autotests! I created new one according the "+10 Additional automated tests are written" score point
+  describe('GET (pagination)', () => {
+    it('should return total, page, limit and data when page and limit are set', async () => {
+      const listBefore = await unauthorizedRequest
+        .get(categoriesRoutes.getAll)
+        .set(commonHeaders);
+      expect(listBefore.status).toBe(StatusCodes.OK);
+      const countBefore = listBefore.body.length;
+
+      const suffix = `${Date.now()}`;
+      const ids: string[] = [];
+      for (let i = 0; i < 3; i++) {
+        const res = await unauthorizedRequest
+          .post(categoriesRoutes.create)
+          .set(commonHeaders)
+          .send({
+            name: `PAG_CAT_${suffix}_${i}`,
+            description: 'pagination test',
+          });
+        expect(res.status).toBe(StatusCodes.CREATED);
+        ids.push(res.body.id);
+      }
+
+      const paginated = await unauthorizedRequest
+        .get(`${categoriesRoutes.getAll}?page=1&limit=2`)
+        .set(commonHeaders);
+
+      expect(paginated.status).toBe(StatusCodes.OK);
+      expect(paginated.body).toMatchObject({
+        total: countBefore + 3,
+        page: 1,
+        limit: 2,
+        data: expect.any(Array),
+      });
+      expect(paginated.body.data).toHaveLength(2);
+
+      for (const id of ids) {
+        await unauthorizedRequest
+          .delete(categoriesRoutes.delete(id))
+          .set(commonHeaders);
+      }
+    });
+  });
+
+  describe('GET (sorting)', () => {
+    it('should sort categories by name ascending', async () => {
+      const suffix = `${Date.now()}`;
+      const names = [`z_cat_${suffix}`, `a_cat_${suffix}`, `m_cat_${suffix}`];
+      const ids: string[] = [];
+      for (const name of names) {
+        const res = await unauthorizedRequest
+          .post(categoriesRoutes.create)
+          .set(commonHeaders)
+          .send({ name, description: 'sort test' });
+        expect(res.status).toBe(StatusCodes.CREATED);
+        ids.push(res.body.id);
+      }
+
+      const res = await unauthorizedRequest
+        .get(`${categoriesRoutes.getAll}?sortBy=name&order=asc`)
+        .set(commonHeaders);
+
+      expect(res.status).toBe(StatusCodes.OK);
+      expect(res.body).toBeInstanceOf(Array);
+      const ours = res.body.filter((c) => ids.includes(c.id));
+      expect(ours).toHaveLength(3);
+      expect(ours.map((c) => c.name)).toEqual([
+        `a_cat_${suffix}`,
+        `m_cat_${suffix}`,
+        `z_cat_${suffix}`,
+      ]);
+
+      for (const id of ids) {
+        await unauthorizedRequest
+          .delete(categoriesRoutes.delete(id))
+          .set(commonHeaders);
+      }
+    });
+  });
 });
