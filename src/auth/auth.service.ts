@@ -60,12 +60,54 @@ export class AuthService {
       throw new ForbiddenException('Authentication failed');
     }
 
-    const payload = {
+    const payload: JwtAccessPayload = {
       userId: user.id,
       login: user.login,
       role: prismaRoleToDomain(user.role),
     };
 
+    return this.issueTokenPair(payload);
+  }
+
+  async refresh(dto: RefreshTokenDto) {
+    if (!dto.refreshToken) {
+      throw new UnauthorizedException('Invalid or missing token');
+    }
+
+    const refreshSecret = this.configService.get<string>(
+      'JWT_SECRET_REFRESH_KEY',
+    );
+
+    let decoded: JwtAccessPayload;
+    try {
+      decoded = this.jwtService.verify<JwtAccessPayload>(dto.refreshToken, {
+        secret: refreshSecret,
+      });
+    } catch {
+      throw new ForbiddenException('Refresh token is invalid or expired');
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: decoded.userId },
+    });
+
+    if (!user) {
+      throw new ForbiddenException('Refresh token is invalid or expired');
+    }
+
+    const payload: JwtAccessPayload = {
+      userId: user.id,
+      login: user.login,
+      role: prismaRoleToDomain(user.role),
+    };
+
+    return this.issueTokenPair(payload);
+  }
+
+  private issueTokenPair(payload: JwtAccessPayload): {
+    accessToken: string;
+    refreshToken: string;
+  } {
     const accessToken = this.jwtService.sign(payload);
 
     const refreshTtl = (this.configService.get<string>(
@@ -80,17 +122,5 @@ export class AuthService {
     });
 
     return { accessToken, refreshToken };
-  }
-  async refresh(dto: RefreshTokenDto) {
-    if (!dto.refreshToken) {
-      throw new UnauthorizedException('Invalid or missing token');
-    }
-
-    //TBD
-    const mockTocken = true;
-    if (!mockTocken) {
-      throw new ForbiddenException('Refresh token is invalid or expired');
-    }
-    return { accessToken: 'TBD', refreshToken: 'TBD' };
   }
 }
