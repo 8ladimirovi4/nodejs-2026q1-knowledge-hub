@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import {
   applyOptionalPagination,
   type PaginatedList,
@@ -11,11 +15,13 @@ import {
   prismaArticleToDomain,
 } from 'src/storage/prisma-mappers';
 import { PrismaService } from 'src/prisma/prisma.service';
-import type { Prisma } from '@prisma/client';
+import { type Prisma } from '@prisma/client';
 import type { FindArticlesQueryDto } from './dto/find-articles.query.dto';
 import { CreateArticleDto } from './dto/create-article.dto';
 import { randomUUID } from 'crypto';
 import { UpdateArticleDto } from './dto/update-article.dto';
+import type { JwtAccessPayload } from 'src/auth/types/jwt-access-payload.interface';
+import { UserRole } from 'src/storage/domain.types';
 
 @Injectable()
 export class ArticleService {
@@ -59,14 +65,20 @@ export class ArticleService {
     return prismaArticleToDomain(row);
   }
 
-  async create(dto: CreateArticleDto): Promise<Article> {
+  async create(
+    actor: JwtAccessPayload,
+    dto: CreateArticleDto,
+  ): Promise<Article> {
+    const authorId =
+      actor.role === UserRole.ADMIN ? (dto.authorId ?? null) : actor.userId;
+
     const row = await this.prisma.article.create({
       data: {
         id: randomUUID(),
         title: dto.title,
         content: dto.content,
         status: domainArticleStatusToPrisma(dto.status ?? ArticleStatus.DRAFT),
-        authorId: dto.authorId ?? null,
+        authorId,
         categoryId: dto.categoryId ?? null,
         tags: {
           connectOrCreate: (dto.tags ?? []).map((name) => ({
@@ -80,7 +92,11 @@ export class ArticleService {
     return prismaArticleToDomain(row);
   }
 
-  async update(id: string, dto: UpdateArticleDto): Promise<Article> {
+  async update(
+    actor: JwtAccessPayload,
+    id: string,
+    dto: UpdateArticleDto,
+  ): Promise<Article> {
     const existing = await this.prisma.article.findUnique({
       where: { id },
       include: { tags: true },
@@ -88,6 +104,8 @@ export class ArticleService {
     if (!existing) {
       throw new NotFoundException();
     }
+
+    this.assertCanModifyArticle(actor, existing.authorId);
 
     await this.prisma.$transaction(async (tx) => {
       const data: Prisma.ArticleUpdateInput = {};
@@ -138,11 +156,26 @@ export class ArticleService {
     return prismaArticleToDomain(row);
   }
 
-  async remove(id: string): Promise<void> {
+  async remove(actor: JwtAccessPayload, id: string): Promise<void> {
     const exists = await this.prisma.article.findUnique({ where: { id } });
     if (!exists) {
       throw new NotFoundException();
     }
+
+    this.assertCanModifyArticle(actor, exists.authorId);
+
     await this.prisma.article.delete({ where: { id } });
+  }
+
+  private assertCanModifyArticle(
+    actor: JwtAccessPayload,
+    authorId: string | null,
+  ): void {
+    if (actor.role === UserRole.ADMIN) {
+      return;
+    }
+    if (authorId === null || authorId !== actor.userId) {
+      throw new ForbiddenException('Insufficient permissions');
+    }
   }
 }

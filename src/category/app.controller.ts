@@ -12,7 +12,9 @@ import {
   Query,
 } from '@nestjs/common';
 import { ApiBearerAuth } from '@nestjs/swagger';
+import { Roles } from 'src/common/decorators/roles.decorator';
 import { ApiOptionalListQueries } from 'src/common/swagger/list-query.decorator';
+import { UserRole } from 'src/storage/domain.types';
 import { CategoryService } from './app.service';
 import { CreateCategoryDto } from './dto/ceate-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
@@ -38,12 +40,14 @@ export class CategoryController {
     return this.categoryService.findOne(id);
   }
 
+  @Roles(UserRole.ADMIN)
   @Post()
   @HttpCode(HttpStatus.CREATED)
   create(@Body() dto: CreateCategoryDto) {
     return this.categoryService.create(dto);
   }
 
+  @Roles(UserRole.ADMIN)
   @Put(':id')
   update(
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
@@ -52,6 +56,7 @@ export class CategoryController {
     return this.categoryService.update(id, dto);
   }
 
+  @Roles(UserRole.ADMIN)
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   remove(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string) {

@@ -11,11 +11,17 @@ import {
   Put,
   Query,
 } from '@nestjs/common';
+import { ApiBearerAuth } from '@nestjs/swagger';
+import type { JwtAccessPayload } from 'src/auth/types/jwt-access-payload.interface';
+import { CurrentUser } from 'src/common/decorators/current-user.decorator';
+import { Roles } from 'src/common/decorators/roles.decorator';
 import { ApiOptionalListQueries } from 'src/common/swagger/list-query.decorator';
+import { UserRole } from 'src/storage/domain.types';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdatePasswordDto } from './dto/update-password.dto';
 import { UserService } from './user.service';
 
+@ApiBearerAuth('access-token')
 @Controller('user')
 export class UserController {
   constructor(private readonly userService: UserService) {}
@@ -36,6 +42,7 @@ export class UserController {
     return this.userService.findOne(id);
   }
 
+  @Roles(UserRole.ADMIN)
   @Post()
   @HttpCode(HttpStatus.CREATED)
   create(@Body() dto: CreateUserDto) {
@@ -44,12 +51,14 @@ export class UserController {
 
   @Put(':id')
   updatePassword(
+    @CurrentUser() user: JwtAccessPayload,
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
     @Body() dto: UpdatePasswordDto,
   ) {
-    return this.userService.updatePassword(id, dto);
+    return this.userService.updatePassword(user, id, dto);
   }
 
+  @Roles(UserRole.ADMIN)
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   remove(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string) {

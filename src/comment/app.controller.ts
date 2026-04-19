@@ -11,7 +11,11 @@ import {
   Query,
 } from '@nestjs/common';
 import { ApiBearerAuth } from '@nestjs/swagger';
+import type { JwtAccessPayload } from 'src/auth/types/jwt-access-payload.interface';
+import { CurrentUser } from 'src/common/decorators/current-user.decorator';
+import { Roles } from 'src/common/decorators/roles.decorator';
 import { ApiOptionalListQueries } from 'src/common/swagger/list-query.decorator';
+import { UserRole } from 'src/storage/domain.types';
 import { CommentService } from './app.service';
 import { CreateCommentDto } from './dto/create-comment.dto';
 import { FindCommentsQueryDto } from './dto/find-comments.query.dto';
@@ -44,15 +48,23 @@ export class CommentController {
     return this.commentService.findOne(id);
   }
 
+  @Roles(UserRole.EDITOR, UserRole.ADMIN)
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  async create(@Body() dto: CreateCommentDto) {
-    return this.commentService.create(dto);
+  async create(
+    @CurrentUser() user: JwtAccessPayload,
+    @Body() dto: CreateCommentDto,
+  ) {
+    return this.commentService.create(user, dto);
   }
 
+  @Roles(UserRole.EDITOR, UserRole.ADMIN)
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
-  async remove(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string) {
-    await this.commentService.remove(id);
+  async remove(
+    @CurrentUser() user: JwtAccessPayload,
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+  ) {
+    await this.commentService.remove(user, id);
   }
 }

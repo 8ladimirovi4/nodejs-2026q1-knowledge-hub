@@ -18,6 +18,7 @@ import {
   prismaUserToDomain,
 } from '../storage/prisma-mappers';
 import { PrismaService } from '../prisma/prisma.service';
+import type { JwtAccessPayload } from 'src/auth/types/jwt-access-payload.interface';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdatePasswordDto } from './dto/update-password.dto';
 
@@ -62,9 +63,14 @@ export class UserService {
   }
 
   async updatePassword(
+    actor: JwtAccessPayload,
     id: string,
     dto: UpdatePasswordDto,
   ): Promise<PublicUser> {
+    if (actor.userId !== id && actor.role !== UserRole.ADMIN) {
+      throw new ForbiddenException();
+    }
+
     const row = await this.prisma.user.findUnique({ where: { id } });
     if (!row) {
       throw new NotFoundException();

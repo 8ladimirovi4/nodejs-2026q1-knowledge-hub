@@ -31,6 +31,7 @@ async function main(): Promise<void> {
 
       const passwordAdmin = await bcrypt.hash('admin123', saltRounds);
       const passwordEditor = await bcrypt.hash('editor123', saltRounds);
+      const passwordViewer = await bcrypt.hash('viewer123', saltRounds);
 
       const admin = await tx.user.create({
         data: {
@@ -45,6 +46,14 @@ async function main(): Promise<void> {
           login: 'editor',
           password: passwordEditor,
           role: UserRole.EDITOR,
+        },
+      });
+
+      const viewer = await tx.user.create({
+        data: {
+          login: 'viewer',
+          password: passwordViewer,
+          role: UserRole.VIEWER,
         },
       });
 
@@ -165,7 +174,7 @@ async function main(): Promise<void> {
       });
 
       console.log(
-        `Seed OK: users ${admin.login}, ${editor.login}; categories 3; tags 5; articles 5 (${a1.id.slice(0, 8)}…); comments 3.`,
+        `Seed OK: users ${admin.login}, ${editor.login}, ${viewer.login}; categories 3; tags 5; articles 5 (${a1.id.slice(0, 8)}…); comments 5.`,
       );
     });
   } finally {

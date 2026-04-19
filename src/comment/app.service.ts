@@ -1,4 +1,5 @@
 import {
+  ForbiddenException,
   Injectable,
   NotFoundException,
   UnprocessableEntityException,
@@ -13,6 +14,8 @@ import {
 } from 'src/common/pagination/apply-pagination.util';
 import { COMMENT_LIST_SORT_KEYS } from 'src/common/sorting/list-sort.keys';
 import { applyListSort } from 'src/common/sorting/list-sort.util';
+import type { JwtAccessPayload } from 'src/auth/types/jwt-access-payload.interface';
+import { UserRole } from 'src/storage/domain.types';
 import { CreateCommentDto } from './dto/create-comment.dto';
 
 @Injectable()
@@ -42,29 +45,51 @@ export class CommentService {
     return prismaCommentToDomain(row);
   }
 
-  async create(dto: CreateCommentDto): Promise<Comment> {
+  async create(
+    actor: JwtAccessPayload,
+    dto: CreateCommentDto,
+  ): Promise<Comment> {
     const article = await this.prisma.article.findUnique({
       where: { id: dto.articleId },
     });
     if (!article) {
       throw new UnprocessableEntityException();
     }
+
+    const authorId =
+      actor.role === UserRole.ADMIN ? (dto.authorId ?? null) : actor.userId;
+
     const row = await this.prisma.comment.create({
       data: {
         id: randomUUID(),
         content: dto.content,
         articleId: dto.articleId,
-        authorId: dto.authorId ?? null,
+        authorId,
       },
     });
     return prismaCommentToDomain(row);
   }
 
-  async remove(id: string): Promise<void> {
+  async remove(actor: JwtAccessPayload, id: string): Promise<void> {
     const exists = await this.prisma.comment.findUnique({ where: { id } });
     if (!exists) {
       throw new NotFoundException();
     }
+
+    this.assertCanDeleteComment(actor, exists.authorId);
+
     await this.prisma.comment.delete({ where: { id } });
+  }
+
+  private assertCanDeleteComment(
+    actor: JwtAccessPayload,
+    authorId: string | null,
+  ): void {
+    if (actor.role === UserRole.ADMIN) {
+      return;
+    }
+    if (authorId === null || authorId !== actor.userId) {
+      throw new ForbiddenException('Insufficient permissions');
+    }
   }
 }
