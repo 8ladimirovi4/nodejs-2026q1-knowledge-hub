@@ -37,13 +37,11 @@ export class AuthService {
 
   async signup(dto: AuthDto) {
     const TEST_AUTH_LOGIN = 'TEST_AUTH_LOGIN';
-    const isTestAuthLogin =
-      dto.login === TEST_AUTH_LOGIN
+    const isTestAuthLogin = dto.login === TEST_AUTH_LOGIN;
 
     if (isTestAuthLogin) {
-      const existingTestAuth = await this.userService.findPublicByLogin(
-        TEST_AUTH_LOGIN,
-      );
+      const existingTestAuth =
+        await this.userService.findPublicByLogin(TEST_AUTH_LOGIN);
       if (existingTestAuth) {
         return existingTestAuth;
       }

@@ -18,7 +18,7 @@ import { Roles } from 'src/common/decorators/roles.decorator';
 import { ApiOptionalListQueries } from 'src/common/swagger/list-query.decorator';
 import { UserRole } from 'src/storage/domain.types';
 import { CreateUserDto } from './dto/create-user.dto';
-import { UpdatePasswordDto } from './dto/update-password.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
 import { UserService } from './user.service';
 
 @ApiBearerAuth('access-token')
@@ -49,13 +49,14 @@ export class UserController {
     return this.userService.create(dto);
   }
 
+  @Roles(UserRole.ADMIN, UserRole.EDITOR)
   @Put(':id')
-  updatePassword(
+  update(
     @CurrentUser() user: JwtAccessPayload,
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
-    @Body() dto: UpdatePasswordDto,
+    @Body() dto: UpdateUserDto,
   ) {
-    return this.userService.updatePassword(user, id, dto);
+    return this.userService.update(user, id, dto);
   }
 
   @Roles(UserRole.ADMIN)

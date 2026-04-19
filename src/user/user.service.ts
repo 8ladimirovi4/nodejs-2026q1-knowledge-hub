@@ -1,8 +1,10 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import type { Prisma } from '@prisma/client';
 import {
   applyOptionalPagination,
   type PaginatedList,
@@ -20,7 +22,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import type { JwtAccessPayload } from 'src/auth/types/jwt-access-payload.interface';
 import { CreateUserDto } from './dto/create-user.dto';
-import { UpdatePasswordDto } from './dto/update-password.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
 
 export type PublicUser = Omit<User, 'password'>;
 
@@ -70,13 +72,31 @@ export class UserService {
     return this.toPublic(prismaUserToDomain(row));
   }
 
-  async updatePassword(
+  async update(
     actor: JwtAccessPayload,
     id: string,
-    dto: UpdatePasswordDto,
+    dto: UpdateUserDto,
   ): Promise<PublicUser> {
     if (actor.userId !== id && actor.role !== UserRole.ADMIN) {
       throw new ForbiddenException();
+    }
+
+    if (dto.role !== undefined && actor.role !== UserRole.ADMIN) {
+      throw new ForbiddenException();
+    }
+
+    const hasLogin = dto.login !== undefined;
+    const hasRole = dto.role !== undefined;
+    const hasOld = dto.oldPassword !== undefined;
+    const hasNew = dto.newPassword !== undefined;
+    const touchesPassword = hasOld || hasNew;
+
+    if (!hasLogin && !hasRole && !touchesPassword) {
+      throw new BadRequestException();
+    }
+
+    if (touchesPassword && (!hasOld || !hasNew)) {
+      throw new BadRequestException();
     }
 
     const row = await this.prisma.user.findUnique({ where: { id } });
@@ -84,15 +104,38 @@ export class UserService {
       throw new NotFoundException();
     }
     const user = prismaUserToDomain(row);
-    const match = await bcrypt.compare(dto.oldPassword, user.password);
-    if (!match) {
-      throw new ForbiddenException();
+
+    const data: Prisma.UserUpdateInput = {};
+
+    if (dto.login !== undefined) {
+      if (dto.login !== user.login) {
+        const taken = await this.prisma.user.findUnique({
+          where: { login: dto.login },
+        });
+        if (taken) {
+          throw new BadRequestException(
+            'no login or password, or they are not strings, or login is already taken',
+          );
+        }
+      }
+      data.login = dto.login;
     }
+
+    if (dto.role !== undefined) {
+      data.role = domainRoleToPrisma(dto.role);
+    }
+
+    if (touchesPassword) {
+      const match = await bcrypt.compare(dto.oldPassword!, user.password);
+      if (!match) {
+        throw new ForbiddenException();
+      }
+      data.password = await bcrypt.hash(dto.newPassword!, 10);
+    }
+
     const updated = await this.prisma.user.update({
       where: { id },
-      data: {
-        password: await bcrypt.hash(dto.newPassword, 10),
-      },
+      data,
     });
     return this.toPublic(prismaUserToDomain(updated));
   }
