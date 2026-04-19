@@ -33,14 +33,14 @@ The API uses **PostgreSQL** via **Prisma ORM**. Connection string is read from *
 These are not separate npm scripts in this repo; use **`npx prisma …`** from the project root (with `.env` loaded — Prisma reads `DATABASE_URL` via `prisma.config.ts`).
 
 
-| Command                     | When to use                                                                           |
-| ----------------------------- | --------------------------------------------------------------------------------------- |
-| `npx prisma generate`       | After changing `prisma/schema.prisma` — regenerates the Prisma client (`@prisma/client`). |
-| `npx prisma migrate dev`    | **Development:** create and apply a new migration from schema changes.                |
-| `npx prisma migrate deploy` | **CI/production:** apply existing migrations from `prisma/migrations/`.               |
-| `npx prisma migrate reset`  | **Dev only:** drops the database, reapplies all migrations, runs seed (destructive).  |
-| `npx prisma db seed`        | Same as**`npm run db:seed`** — seed data.                                            |
-| `npx prisma studio`         | Open a browser UI to browse/edit tables.                                              |
+| Command                     | When to use                                                                               |
+| ----------------------------- | ------------------------------------------------------------------------------------------- |
+| `npx prisma generate`       | After changing`prisma/schema.prisma` — regenerates the Prisma client (`@prisma/client`). |
+| `npx prisma migrate dev`    | **Development:** create and apply a new migration from schema changes.                    |
+| `npx prisma migrate deploy` | **CI/production:** apply existing migrations from `prisma/migrations/`.                   |
+| `npx prisma migrate reset`  | **Dev only:** drops the database, reapplies all migrations, runs seed (destructive).      |
+| `npx prisma db seed`        | Same as**`npm run db:seed`** — seed data.                                                |
+| `npx prisma studio`         | Open a browser UI to browse/edit tables.                                                  |
 
 Typical local workflow: start Postgres (`docker compose up -d db` or full stack) → set **`DATABASE_URL`** → `npx prisma migrate dev` → optional `npm run db:seed` → `npm run start:dev`.
 
@@ -57,6 +57,8 @@ For more information about OpenAPI/Swagger please visit https://swagger.io/.
 ### Swagger UI and JWT (Bearer token)
 
 Protected routes expect the header `Authorization: Bearer <access_token>`. Swagger does not add it automatically; you must authorize once per session (authorization may persist across reloads).
+
+After seeding the database (`npm run db:seed`), user with **`login`** `admin` and **`password`** `admin123` exists (see `prisma/seed.ts`). You can use these credentials in **`POST /auth/login`** to obtain an access token without signing up first.
 
 1. Call **`POST /auth/login`** with `{ "login": "...", "password": "..." }` and copy **`accessToken`** from the JSON response.
 2. Click **Authorize** (top of the Swagger UI page).
@@ -98,6 +100,7 @@ To stop and remove containers:
 ```bash
 docker compose down
 ```
+
 ### Verifying health checks (`docker compose ps`)
 
 Both **`app`** and **`db`** define `healthcheck` in `docker-compose.yml`. After the stack is running, check that Docker reports them as healthy:
@@ -106,6 +109,7 @@ Both **`app`** and **`db`** define `healthcheck` in `docker-compose.yml`. After 
 docker compose up --build -d
 docker compose ps
 ```
+
 In the **STATUS** (or **State**) column you should see **`healthy`** for **`app`** and **`db`** once probes have succeeded (allow a short time after startup; **`app`** uses `start_period: 40s`). If you see **`starting`**, wait and run `docker compose ps` again.
 
 This matches the course criterion that health checks are configured for both services. Optional detail:
@@ -114,6 +118,7 @@ This matches the course criterion that health checks are configured for both ser
 docker inspect --format '{{.State.Health.Status}}' "$(docker compose ps -q app)"
 docker inspect --format '{{.State.Health.Status}}' "$(docker compose ps -q db)"
 ```
+
 Expected output for each: **`healthy`**.
 
 ### Verifying the application container runs as non-root
@@ -127,6 +132,7 @@ docker compose up --build -d
 docker compose exec app whoami
 docker compose exec app id
 ```
+
 You should see **`nestjs`** (or another **non-root** user) and a **UID that is not `0`** (not `root`).
 
 From the host, without exec:
@@ -134,6 +140,7 @@ From the host, without exec:
 ```bash
 docker inspect --format '{{.Config.User}}' "$(docker compose ps -q app)"
 ```
+
 A **non-empty** value (e.g. `nestjs`) indicates the default user for the container is not root.
 
 To check the image directly after **`docker pull`** (or substitute your local tag, e.g. `nodejs-2026q1-knowledge-hub-app:latest`):
@@ -141,6 +148,7 @@ To check the image directly after **`docker pull`** (or substitute your local ta
 ```bash
 docker run --rm vlleo/nodejs-2026q1-knowledge-hub-app:latest id
 ```
+
 Again, **UID must not be `0`**.
 
 ### Adminer (optional, local PostgreSQL UI)
@@ -153,6 +161,7 @@ Adminer is **not** started by default. It is isolated behind the Compose **`debu
 ```bash
 docker compose --profile debug up --build
 ```
+
 3. Open Adminer in the browser: **`http://localhost:<ADMINER_PORT>/`** (for example `http://localhost:8080/` when `ADMINER_PORT=8080`).
 4. Log in to PostgreSQL:
 
@@ -178,39 +187,47 @@ To run all tests without authorization
 ```
 npm run test
 ```
+
 To run only one of all test suites
 
 ```
 npm run test -- <path to suite>
 ```
+
 To run all test with authorization
 
 ```
 npm run test:auth
 ```
+
 To run only specific test suite with authorization
 
 ```
 npm run test:auth -- <path to suite>
 ```
+
 To run refresh token tests
 
 ```
 npm run test:refresh
 ```
+
 To run RBAC (role-based access control) tests
 
 ```
 npm run test:rbac
 ```
+
 ### Auto-fix and format
 
 ```
 npm run lint
 ```
+
 ```
 npm run format
 ```
+
 ### Debugging in VSCode
 
 Press <kbd>F5</kbd> to debug.
