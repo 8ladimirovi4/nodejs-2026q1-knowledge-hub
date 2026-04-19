@@ -48,6 +48,14 @@ export class UserService {
     return this.toPublic(prismaUserToDomain(row));
   }
 
+  async findPublicByLogin(login: string): Promise<PublicUser | null> {
+    const row = await this.prisma.user.findUnique({ where: { login } });
+    if (!row) {
+      return null;
+    }
+    return this.toPublic(prismaUserToDomain(row));
+  }
+
   async create(dto: CreateUserDto): Promise<PublicUser> {
     const role = dto.role ?? UserRole.VIEWER;
     const passwordHash = await bcrypt.hash(dto.password, 10);

