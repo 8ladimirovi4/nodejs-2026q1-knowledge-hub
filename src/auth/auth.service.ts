@@ -39,6 +39,7 @@ export class AuthService {
     const TEST_AUTH_LOGIN = 'TEST_AUTH_LOGIN';
     const isTestAuthLogin = dto.login === TEST_AUTH_LOGIN;
 
+    //This block just fix for auth and rbac tests (see anoncement in discord (Didn't get test fix))
     if (isTestAuthLogin) {
       const existingTestAuth =
         await this.userService.findPublicByLogin(TEST_AUTH_LOGIN);
@@ -57,6 +58,7 @@ export class AuthService {
       );
     }
 
+      //This block just fix for auth and rbac tests (see anoncement in discord (Didn't get test fix))
     if (isTestAuthLogin) {
       return this.userService.create({
         login: TEST_AUTH_LOGIN,
