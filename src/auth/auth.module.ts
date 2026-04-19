@@ -9,6 +9,7 @@ import { JwtModule } from '@nestjs/jwt';
 import type { SignOptions } from 'jsonwebtoken';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RolesGuard } from './guards/roles.guard';
+import { RefreshTokenBlacklistService } from './refresh-token-blacklist.service';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { RolesGuard } from './guards/roles.guard';
   controllers: [AuthController],
   providers: [
     AuthService,
+    RefreshTokenBlacklistService,
     ThrottlerGuard,
     {
       provide: APP_GUARD,

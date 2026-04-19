@@ -66,7 +66,9 @@ After seeding the database (`npm run db:seed`), user with **`login`** `admin` an
 4. Click **Authorize**, then **Close**.
 5. Use **Try it out** → **Execute** on any protected operation (for example **`GET /user`**). The generated **curl** and the browser request should include `-H 'Authorization: Bearer …'`.
 
-Public routes (`/auth/signup`, `/auth/login`, `/auth/refresh`, `/`, `/doc`) do not require a token.
+Public routes (`/auth/signup`, `/auth/login`, `/auth/refresh`, `/auth/logout`, `/`, `/doc`) do not require a token.
+
+**Logout / refresh token blacklist:** `POST /auth/logout` accepts `{ "refreshToken": "<jwt>" }` and revokes that refresh token until it would have expired. Revocation is stored **in memory** in the API process: it does **not** survive restarts, is **not** shared between multiple app instances, and is intended for **local/demo** use only. For production, use Redis or a database-backed store.
 
 ## Docker
 
