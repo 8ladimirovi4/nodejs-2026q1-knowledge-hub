@@ -11,6 +11,7 @@ import {
 } from 'src/common/pagination/apply-pagination.util';
 import { USER_LIST_SORT_KEYS } from 'src/common/sorting/list-sort.keys';
 import { applyListSort } from 'src/common/sorting/list-sort.util';
+import { requireSaltRounds } from 'src/common/utils';
 import * as bcrypt from 'bcryptjs';
 import { randomUUID } from 'crypto';
 import type { User } from '../storage/domain.types';
@@ -60,7 +61,7 @@ export class UserService {
 
   async create(dto: CreateUserDto): Promise<PublicUser> {
     const role = dto.role ?? UserRole.VIEWER;
-    const passwordHash = await bcrypt.hash(dto.password, 10);
+    const passwordHash = await bcrypt.hash(dto.password, requireSaltRounds());
     const row = await this.prisma.user.create({
       data: {
         id: randomUUID(),
@@ -130,7 +131,10 @@ export class UserService {
       if (!match) {
         throw new ForbiddenException();
       }
-      data.password = await bcrypt.hash(dto.newPassword!, 10);
+      data.password = await bcrypt.hash(
+        dto.newPassword!,
+        requireSaltRounds(),
+      );
     }
 
     const updated = await this.prisma.user.update({
