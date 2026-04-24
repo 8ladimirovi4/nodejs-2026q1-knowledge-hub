@@ -7,10 +7,7 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     setupFiles: ['./vitest.setup.ts'],
-    include: [
-      'src/**/*.spec.ts',
-      'src/**/__tests__/**/*.spec.ts',
-    ],
+    include: ['src/**/*.unit.spec.ts'],
     exclude: ['**/node_modules/**', '**/dist/**', 'test/**'],
     root: process.cwd(),
     pool: 'forks',
@@ -19,8 +16,7 @@ export default defineConfig({
       reporter: ['text', 'json', 'html'],
       include: ['src/**/*.ts'],
       exclude: [
-        '**/*.spec.ts',
-        '**/__tests__/**',
+        '**/*.unit.spec.ts',
         '**/*.module.ts',
         'src/main.ts',
         '**/*.d.ts',
