@@ -58,7 +58,7 @@ export class AuthService {
       );
     }
 
-      //This block just fix for auth and rbac tests (see anoncement in discord (Didn't get test fix))
+    //This block just fix for auth and rbac tests (see anoncement in discord (Didn't get test fix))
     if (isTestAuthLogin) {
       return this.userService.create({
         login: TEST_AUTH_LOGIN,
