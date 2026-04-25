@@ -21,7 +21,7 @@
     "test:unit": "vitest run",
     "test:unit:ui": "vitest --ui",
     "test:unit:watch": "vitest",
-    "test:coverage:open": "(open coverage/index.html || open -a \"Google Chrome\" coverage/index.html || open -a Safari coverage/index.html)",
+    "test:coverage:open": "npm run test:coverage; (open coverage/index.html || open -a \"Google Chrome\" coverage/index.html || open -a Safari coverage/index.html)",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "cross-env TEST_MODE=auth jest --testMatch \"<rootDir>/*.spec.ts\" --noStackTrace --runInBand",
     "test:auth": "cross-env TEST_MODE=auth jest --testPathIgnorePatterns \"refresh|rbac\" --noStackTrace --runInBand",
