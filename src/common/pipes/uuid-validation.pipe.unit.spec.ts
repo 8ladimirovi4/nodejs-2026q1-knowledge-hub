@@ -20,9 +20,9 @@ describe('UuidValidationPipe', () => {
   });
 
   it('throws BadRequestException for invalid uuid', async () => {
-    await expect(pipe.transform('invalid-uuid', metadata)).rejects.toBeInstanceOf(
-      BadRequestException,
-    );
+    await expect(
+      pipe.transform('invalid-uuid', metadata),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('throws BadRequestException for uuid with wrong version', async () => {
