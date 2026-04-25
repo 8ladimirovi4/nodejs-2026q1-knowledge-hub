@@ -182,42 +182,54 @@ Open the API docs at `http://localhost:<PORT>/doc/` (for example `http://localho
 
 ## Testing
 
-After application running open new terminal and enter:
+Run commands from a new terminal in the project root.
 
-To run all tests without authorization
-
-```
-npm run test
-```
-
-To run only one of all test suites
+### Unit tests (Vitest)
 
 ```
-npm run test -- <path to suite>
+npm run test:unit
 ```
 
-To run all test with authorization
+```
+npm run test:unit:watch
+```
+
+```
+npm run test:unit:ui
+```
+
+### Coverage (Vitest)
+
+```
+npm run test:coverage
+```
+
+```
+npm run test:coverage:open
+```
+
+### E2E / auth suites (Jest)
+
+```
+npm run test:e2e
+```
 
 ```
 npm run test:auth
 ```
 
-To run only specific test suite with authorization
-
-```
-npm run test:auth -- <path to suite>
-```
-
-To run refresh token tests
-
 ```
 npm run test:refresh
 ```
 
-To run RBAC (role-based access control) tests
-
 ```
 npm run test:rbac
+```
+
+### Run all test suites
+
+```
+npm run test
 ```
 
 ### Auto-fix and format
