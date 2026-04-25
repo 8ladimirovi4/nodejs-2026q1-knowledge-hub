@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -26,6 +27,17 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 
 export type PublicUser = Omit<User, 'password'>;
+
+function isPrismaUniqueConstraintViolation(
+  error: unknown,
+): error is { code: 'P2002' } {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    (error as { code: string }).code === 'P2002'
+  );
+}
 
 @Injectable()
 export class UserService {
@@ -62,15 +74,22 @@ export class UserService {
   async create(dto: CreateUserDto): Promise<PublicUser> {
     const role = dto.role ?? UserRole.VIEWER;
     const passwordHash = await bcrypt.hash(dto.password, requireSaltRounds());
-    const row = await this.prisma.user.create({
-      data: {
-        id: randomUUID(),
-        login: dto.login,
-        password: passwordHash,
-        role: domainRoleToPrisma(role),
-      },
-    });
-    return this.toPublic(prismaUserToDomain(row));
+    try {
+      const row = await this.prisma.user.create({
+        data: {
+          id: randomUUID(),
+          login: dto.login,
+          password: passwordHash,
+          role: domainRoleToPrisma(role),
+        },
+      });
+      return this.toPublic(prismaUserToDomain(row));
+    } catch (e) {
+      if (isPrismaUniqueConstraintViolation(e)) {
+        throw new ConflictException('A user with this login already exists.');
+      }
+      throw e;
+    }
   }
 
   async update(
@@ -95,24 +114,24 @@ export class UserService {
     if (!hasLogin && !hasRole && !touchesPassword) {
       throw new BadRequestException();
     }
-
     if (touchesPassword && (!hasOld || !hasNew)) {
       throw new BadRequestException();
     }
 
     const row = await this.prisma.user.findUnique({ where: { id } });
+
     if (!row) {
       throw new NotFoundException();
     }
     const user = prismaUserToDomain(row);
 
     const data: Prisma.UserUpdateInput = {};
-
     if (dto.login !== undefined) {
       if (dto.login !== user.login) {
         const taken = await this.prisma.user.findUnique({
           where: { login: dto.login },
         });
+
         if (taken) {
           throw new BadRequestException(
             'no login or password, or they are not strings, or login is already taken',
@@ -131,10 +150,7 @@ export class UserService {
       if (!match) {
         throw new ForbiddenException();
       }
-      data.password = await bcrypt.hash(
-        dto.newPassword!,
-        requireSaltRounds(),
-      );
+      data.password = await bcrypt.hash(dto.newPassword!, requireSaltRounds());
     }
 
     const updated = await this.prisma.user.update({
