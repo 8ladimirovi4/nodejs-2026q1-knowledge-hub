@@ -4,12 +4,17 @@ import {
   ExceptionFilter,
   HttpException,
   HttpStatus,
+  Logger,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
 
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
+  private readonly logger = new Logger(HttpExceptionFilter.name);
+
   catch(exception: unknown, host: ArgumentsHost): void {
+    this.logErrorWithStackTrace(exception);
+
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request>();
@@ -42,5 +47,16 @@ export class HttpExceptionFilter implements ExceptionFilter {
       path: request.url,
       timestamp: new Date().toISOString(),
     });
+  }
+
+  private logErrorWithStackTrace(exception: unknown): void {
+    if (exception instanceof Error) {
+      const stack = exception.stack ?? 'No stack trace available';
+      this.logger.error(exception.message, stack);
+      return;
+    }
+    this.logger.error(
+      `Unhandled exception (non-Error): ${String(exception)}`,
+    );
   }
 }
