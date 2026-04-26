@@ -1,9 +1,5 @@
-import { Injectable } from '@nestjs/common';
-import {
-  ForbiddenError,
-  NotFoundError,
-  ValidationError,
-} from 'src/common/errors';
+import { Injectable, UnprocessableEntityException } from '@nestjs/common';
+import { ForbiddenError, NotFoundError } from 'src/common/errors';
 import { randomUUID } from 'crypto';
 import type { Comment } from 'src/storage/domain.types';
 import { prismaCommentToDomain } from 'src/storage/prisma-mappers';
@@ -53,7 +49,7 @@ export class CommentService {
       where: { id: dto.articleId },
     });
     if (!article) {
-      throw new ValidationError('Referenced article does not exist');
+      throw new UnprocessableEntityException();
     }
 
     const authorId =

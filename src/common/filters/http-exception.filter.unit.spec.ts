@@ -87,6 +87,85 @@ describe('HttpExceptionFilter', () => {
     expect(errorSpy).toHaveBeenCalledWith('Custom failure', expect.any(String));
   });
 
+  it('joins array message and uses explicit error from HttpException object response', () => {
+    const host = createHost('/auth/refresh', response);
+    const ex = new HttpException(
+      {
+        message: ['field a is invalid', 'field b is invalid'],
+        error: 'Validation Failed',
+      },
+      HttpStatus.BAD_REQUEST,
+    );
+
+    filter.catch(ex, host);
+
+    expect(response.status).toHaveBeenCalledWith(HttpStatus.BAD_REQUEST);
+    expect(response.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        statusCode: HttpStatus.BAD_REQUEST,
+        message: 'field a is invalid, field b is invalid',
+        error: 'Validation Failed',
+        path: '/auth/refresh',
+      }),
+    );
+  });
+
+  it('uses default message and HttpStatus name when HttpException object has no message/error', () => {
+    const host = createHost('/auth/refresh', response);
+    const ex = new HttpException({}, HttpStatus.BAD_REQUEST);
+
+    filter.catch(ex, host);
+
+    expect(response.status).toHaveBeenCalledWith(HttpStatus.BAD_REQUEST);
+    expect(response.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        statusCode: HttpStatus.BAD_REQUEST,
+        message: 'Internal server error',
+        error: 'BAD_REQUEST',
+        path: '/auth/refresh',
+      }),
+    );
+  });
+
+  it('uses message from HttpException object response when it is a string field', () => {
+    const host = createHost('/users', response);
+    const ex = new HttpException(
+      {
+        message: 'Payload validation failed',
+      },
+      HttpStatus.BAD_REQUEST,
+    );
+
+    filter.catch(ex, host);
+
+    expect(response.status).toHaveBeenCalledWith(HttpStatus.BAD_REQUEST);
+    expect(response.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        statusCode: HttpStatus.BAD_REQUEST,
+        message: 'Payload validation failed',
+        error: 'BAD_REQUEST',
+        path: '/users',
+      }),
+    );
+  });
+
+  it('falls back to "Error" when HttpException status has no enum name', () => {
+    const host = createHost('/custom-status', response);
+    const ex = new HttpException({}, 499);
+
+    filter.catch(ex, host);
+
+    expect(response.status).toHaveBeenCalledWith(499);
+    expect(response.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        statusCode: 499,
+        message: 'Internal server error',
+        error: 'Error',
+        path: '/custom-status',
+      }),
+    );
+  });
+
   it.each([
     [
       new NotFoundError('Resource missing'),
@@ -136,6 +215,24 @@ describe('HttpExceptionFilter', () => {
     },
   );
 
+  it('falls back to "Error" label for custom error with unknown statusCode', () => {
+    const host = createHost('/custom', response);
+    const err = new ValidationError('Validation failed');
+    Object.defineProperty(err, 'statusCode', { value: 499 });
+
+    filter.catch(err, host);
+
+    expect(response.status).toHaveBeenCalledWith(499);
+    expect(response.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        statusCode: 499,
+        message: 'Validation failed',
+        error: 'Error',
+        path: '/custom',
+      }),
+    );
+  });
+
   it('formats unknown errors as assignment-compliant 500 response', () => {
     const host = createHost('/articles', response);
 
@@ -167,5 +264,15 @@ describe('HttpExceptionFilter', () => {
     expect(errorSpy).toHaveBeenCalledWith(
       'Unhandled exception (non-Error): plain-string-throw',
     );
+  });
+
+  it('logs Error without stack using fallback stack message', () => {
+    const host = createHost('/x', response);
+    const err = new Error('boom');
+    Object.defineProperty(err, 'stack', { value: undefined });
+
+    filter.catch(err, host);
+
+    expect(errorSpy).toHaveBeenCalledWith('boom', 'No stack trace available');
   });
 });
