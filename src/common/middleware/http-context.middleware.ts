@@ -1,5 +1,6 @@
 import { Injectable, Logger, NestMiddleware } from '@nestjs/common';
 import type { NextFunction, Request, Response } from 'express';
+import { sanitizeValueForLog } from '../sanitization/sanitize-for-log';
 
 @Injectable()
 export class HttpContextMiddleware implements NestMiddleware {
@@ -37,8 +38,9 @@ function stringifyForLog(value: unknown): string {
   if (value === null) {
     return 'null';
   }
+  const safe = sanitizeValueForLog(value);
   try {
-    return JSON.stringify(value);
+    return JSON.stringify(safe);
   } catch {
     return '[unserializable]';
   }
