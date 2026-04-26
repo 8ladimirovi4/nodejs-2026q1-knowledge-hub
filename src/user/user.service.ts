@@ -1,5 +1,9 @@
 import { ConflictException, Injectable } from '@nestjs/common';
-import { ForbiddenError, NotFoundError, ValidationError } from 'src/common/errors';
+import {
+  ForbiddenError,
+  NotFoundError,
+  ValidationError,
+} from 'src/common/errors';
 import type { Prisma } from '@prisma/client';
 import {
   applyOptionalPagination,

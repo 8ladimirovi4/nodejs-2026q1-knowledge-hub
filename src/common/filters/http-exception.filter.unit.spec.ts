@@ -1,4 +1,9 @@
-import { HttpException, HttpStatus, Logger, type ArgumentsHost } from '@nestjs/common';
+import {
+  HttpException,
+  HttpStatus,
+  Logger,
+  type ArgumentsHost,
+} from '@nestjs/common';
 import {
   ForbiddenError,
   NotFoundError,

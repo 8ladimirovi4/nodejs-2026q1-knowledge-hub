@@ -8,7 +8,9 @@ export const CurrentUser = createParamDecorator(
       .switchToHttp()
       .getRequest<{ user?: JwtAccessPayload }>().user;
     if (!user) {
-      throw new UnauthorizedError('Authenticated user is not present on the request');
+      throw new UnauthorizedError(
+        'Authenticated user is not present on the request',
+      );
     }
     return user;
   },

@@ -189,12 +189,15 @@ function formatDevFileLine(
   optional: any[],
 ): string {
   const time = new Date().toISOString();
-  const body =
-    message instanceof Error ? message.message : serializeValue(message);
   const rest =
     optional.length > 0
       ? ` ${optional.map((a) => (a instanceof Error ? (a.stack ?? a.message) : String(serializeValue(a)))).join(' | ')}`
       : '';
+  if (message instanceof Error) {
+    const stack = message.stack ?? message.message;
+    return `${time} [${level.toUpperCase()}]${rest}\n${stack}\n`;
+  }
+  const body = serializeValue(message);
   return `${time} [${level.toUpperCase()}] ${body}${rest}\n`;
 }
 

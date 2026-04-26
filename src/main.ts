@@ -3,6 +3,7 @@ import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppLogger } from './common/logger/app-logger.service';
+import { registerUncaughtExceptionHandler } from './common/process/register-uncaught-exception';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
@@ -42,5 +43,6 @@ async function bootstrap() {
   });
 
   await app.listen(process.env.PORT ?? 4000);
+  registerUncaughtExceptionHandler(app, appLogger);
 }
 bootstrap();

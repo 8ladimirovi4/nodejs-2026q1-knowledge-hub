@@ -1,6 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConflictException } from '@nestjs/common';
-import { ForbiddenError, NotFoundError, ValidationError } from 'src/common/errors';
+import {
+  ForbiddenError,
+  NotFoundError,
+  ValidationError,
+} from 'src/common/errors';
 import { UserRole as PrismaUserRole } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { requireSaltRounds } from '../common/utils';

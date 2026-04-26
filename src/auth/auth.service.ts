@@ -1,6 +1,10 @@
 import 'dotenv/config';
 import { Injectable } from '@nestjs/common';
-import { ForbiddenError, UnauthorizedError, ValidationError } from 'src/common/errors';
+import {
+  ForbiddenError,
+  UnauthorizedError,
+  ValidationError,
+} from 'src/common/errors';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import type { SignOptions } from 'jsonwebtoken';
