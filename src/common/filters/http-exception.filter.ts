@@ -55,8 +55,6 @@ export class HttpExceptionFilter implements ExceptionFilter {
       this.logger.error(exception.message, stack);
       return;
     }
-    this.logger.error(
-      `Unhandled exception (non-Error): ${String(exception)}`,
-    );
+    this.logger.error(`Unhandled exception (non-Error): ${String(exception)}`);
   }
 }

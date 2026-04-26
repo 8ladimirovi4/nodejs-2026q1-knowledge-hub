@@ -79,10 +79,7 @@ describe('HttpExceptionFilter', () => {
         path: '/auth/login',
       }),
     );
-    expect(errorSpy).toHaveBeenCalledWith(
-      'Custom failure',
-      expect.any(String),
-    );
+    expect(errorSpy).toHaveBeenCalledWith('Custom failure', expect.any(String));
   });
 
   it('formats unknown errors as 500 Internal Server Error', () => {
