@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Logger, NotFoundException } from '@nestjs/common';
 import { ArticleStatus as PrismaArticleStatus } from '@prisma/client';
 import { ArticleService } from './app.service';
 import { PrismaService } from 'src/prisma/prisma.service';
@@ -57,6 +57,17 @@ describe('ArticleService', () => {
         {
           provide: PrismaService,
           useValue: prismaMock as unknown as PrismaService,
+        },
+        {
+          provide: Logger,
+          useValue: {
+            log: vi.fn(),
+            error: vi.fn(),
+            warn: vi.fn(),
+            debug: vi.fn(),
+            verbose: vi.fn(),
+            fatal: vi.fn(),
+          } as unknown as Logger,
         },
       ],
     }).compile();

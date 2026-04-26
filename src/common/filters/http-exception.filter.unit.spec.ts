@@ -52,7 +52,10 @@ describe('HttpExceptionFilter', () => {
   it('formats HttpException when response is a string', () => {
     const host = createHost('/auth/login', response);
 
-    filter.catch(new HttpException('Custom failure', HttpStatus.CONFLICT), host);
+    filter.catch(
+      new HttpException('Custom failure', HttpStatus.CONFLICT),
+      host,
+    );
 
     expect(response.status).toHaveBeenCalledWith(HttpStatus.CONFLICT);
     expect(response.json).toHaveBeenCalledWith(

@@ -1,6 +1,12 @@
-import { ConsoleLogger, type LogLevel, type LoggerService } from '@nestjs/common';
+import {
+  ConsoleLogger,
+  type LogLevel,
+  type LoggerService,
+} from '@nestjs/common';
+import type { RotatingFileStream } from 'rotating-file-stream';
 import { getNestLogLevelsFromEnv } from '../config/nest-logger.config';
 import { isLogLevelEnabled } from './log-levels.util';
+import { openRotatingAppLogStream } from './rotating-app-log.file';
 
 type JsonLogRecord = Record<string, unknown>;
 
@@ -8,11 +14,13 @@ export class AppLogger implements LoggerService {
   private logLevels: LogLevel[];
   private readonly console: ConsoleLogger;
   private readonly isProd: boolean;
+  private readonly logFile: RotatingFileStream | null;
 
   constructor() {
     this.isProd = process.env.NODE_ENV === 'production';
     this.logLevels = getNestLogLevelsFromEnv();
     this.console = new ConsoleLogger(undefined, { logLevels: this.logLevels });
+    this.logFile = openRotatingAppLogStream();
   }
 
   setLogLevels(levels: LogLevel[]): void {
@@ -26,6 +34,7 @@ export class AppLogger implements LoggerService {
     }
     if (!this.isProd) {
       this.console.log(message, ...optional);
+      this.appendDevFileLine('log', message, optional);
       return;
     }
     this.writeJson('log', false, message, optional);
@@ -37,6 +46,7 @@ export class AppLogger implements LoggerService {
     }
     if (!this.isProd) {
       this.console.error(message, ...optional);
+      this.appendDevFileLine('error', message, optional);
       return;
     }
     this.writeJson('error', true, message, optional);
@@ -48,6 +58,7 @@ export class AppLogger implements LoggerService {
     }
     if (!this.isProd) {
       this.console.warn(message, ...optional);
+      this.appendDevFileLine('warn', message, optional);
       return;
     }
     this.writeJson('warn', true, message, optional);
@@ -59,6 +70,7 @@ export class AppLogger implements LoggerService {
     }
     if (!this.isProd) {
       this.console.debug?.(message, ...optional);
+      this.appendDevFileLine('debug', message, optional);
       return;
     }
     this.writeJson('debug', false, message, optional);
@@ -70,6 +82,7 @@ export class AppLogger implements LoggerService {
     }
     if (!this.isProd) {
       this.console.verbose?.(message, ...optional);
+      this.appendDevFileLine('verbose', message, optional);
       return;
     }
     this.writeJson('verbose', false, message, optional);
@@ -81,9 +94,23 @@ export class AppLogger implements LoggerService {
     }
     if (!this.isProd) {
       this.console.fatal?.(message, ...optional);
+      this.appendDevFileLine('fatal', message, optional);
       return;
     }
     this.writeJson('fatal', true, message, optional);
+  }
+
+  private writeToConsoleAndFile(line: string, useStderr: boolean) {
+    const out = useStderr ? process.stderr : process.stdout;
+    out.write(line);
+    this.logFile?.write(line);
+  }
+
+  private appendDevFileLine(level: string, message: any, optional: any[]) {
+    if (!this.logFile) {
+      return;
+    }
+    this.logFile.write(formatDevFileLine(level, message, optional));
   }
 
   private writeJson(
@@ -94,8 +121,7 @@ export class AppLogger implements LoggerService {
   ) {
     const line =
       JSON.stringify(this.buildJsonRecord(level, message, optional)) + '\n';
-    const out = useStderr ? process.stderr : process.stdout;
-    out.write(line);
+    this.writeToConsoleAndFile(line, useStderr);
   }
 
   private buildJsonRecord(
@@ -155,6 +181,21 @@ export class AppLogger implements LoggerService {
     }
     record.extra = rest;
   }
+}
+
+function formatDevFileLine(
+  level: string,
+  message: any,
+  optional: any[],
+): string {
+  const time = new Date().toISOString();
+  const body =
+    message instanceof Error ? message.message : serializeValue(message);
+  const rest =
+    optional.length > 0
+      ? ` ${optional.map((a) => (a instanceof Error ? (a.stack ?? a.message) : String(serializeValue(a)))).join(' | ')}`
+      : '';
+  return `${time} [${level.toUpperCase()}] ${body}${rest}\n`;
 }
 
 function looksLikeStackTrace(s: string) {

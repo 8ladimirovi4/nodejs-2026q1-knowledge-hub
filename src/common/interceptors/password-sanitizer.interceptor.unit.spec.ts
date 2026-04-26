@@ -17,10 +17,7 @@ describe('PasswordSanitizerInterceptor', () => {
         login: 'john',
         password: 'nested-secret',
       },
-      sessions: [
-        { token: 't1', password: 'session-secret' },
-        { token: 't2' },
-      ],
+      sessions: [{ token: 't1', password: 'session-secret' }, { token: 't2' }],
     };
 
     const next: CallHandler = {
