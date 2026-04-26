@@ -77,8 +77,8 @@ export class HttpExceptionFilter implements ExceptionFilter {
 
     return {
       status: HttpStatus.INTERNAL_SERVER_ERROR,
-      message: 'Internal server error',
-      error: this.httpStatusName(HttpStatus.INTERNAL_SERVER_ERROR) ?? 'Error',
+      message: 'An unexpected error occurred',
+      error: 'Internal Server Error',
     };
   }
 

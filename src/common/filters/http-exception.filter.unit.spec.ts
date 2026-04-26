@@ -136,7 +136,7 @@ describe('HttpExceptionFilter', () => {
     },
   );
 
-  it('formats unknown errors as 500 Internal Server Error', () => {
+  it('formats unknown errors as assignment-compliant 500 response', () => {
     const host = createHost('/articles', response);
 
     filter.catch(new Error('db down'), host);
@@ -147,8 +147,8 @@ describe('HttpExceptionFilter', () => {
     expect(response.json).toHaveBeenCalledWith(
       expect.objectContaining({
         statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
-        message: 'Internal server error',
-        error: 'INTERNAL_SERVER_ERROR',
+        message: 'An unexpected error occurred',
+        error: 'Internal Server Error',
         path: '/articles',
         timestamp: expect.any(String),
       }),

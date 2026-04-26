@@ -30,7 +30,7 @@ export function registerProcessErrorHandlers(
 
   process.on('uncaughtException', (error: unknown) => {
     const err = toError(error);
-    logger.error(err, 'uncaughtException');
+    logger.fatal(err, 'uncaughtException');
     gracefulShutdown('uncaughtException');
   });
 
