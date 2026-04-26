@@ -15,7 +15,7 @@
     "start": "nest start",
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
-    "start:prod": "node dist/main.js",
+    "start:prod": "cross-env NODE_ENV=production node dist/main.js",
     "lint": "eslint \"{src,apps,libs}/**/*.ts\" --fix",
     "test": "npm run test:unit && npm run test:e2e && npm run test:auth && npm run test:refresh && npm run test:rbac",
     "test:unit": "vitest run",

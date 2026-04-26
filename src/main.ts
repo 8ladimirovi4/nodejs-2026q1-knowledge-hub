@@ -2,10 +2,15 @@ import 'dotenv/config';
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { AppLogger } from './common/logger/app-logger.service';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const appLogger = new AppLogger();
+  const app = await NestFactory.create(AppModule, {
+    bufferLogs: true,
+    logger: appLogger,
+  });
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
