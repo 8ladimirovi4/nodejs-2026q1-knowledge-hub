@@ -7,6 +7,12 @@ import {
   Logger,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
+import {
+  ForbiddenError,
+  NotFoundError,
+  UnauthorizedError,
+  ValidationError,
+} from '../errors';
 
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
@@ -19,26 +25,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request>();
 
-    const status =
-      exception instanceof HttpException
-        ? exception.getStatus()
-        : HttpStatus.INTERNAL_SERVER_ERROR;
-
-    const exceptionResponse =
-      exception instanceof HttpException ? exception.getResponse() : undefined;
-
-    const message =
-      typeof exceptionResponse === 'string'
-        ? exceptionResponse
-        : ((exceptionResponse as { message?: string | string[] } | undefined)
-            ?.message ?? 'Internal server error');
-
-    const error =
-      typeof exceptionResponse === 'string'
-        ? 'Error'
-        : ((exceptionResponse as { error?: string } | undefined)?.error ??
-          HttpStatus[status] ??
-          'Error');
+    const { status, message, error } = this.getResponsePayload(exception);
 
     response.status(status).json({
       statusCode: status,
@@ -47,6 +34,57 @@ export class HttpExceptionFilter implements ExceptionFilter {
       path: request.url,
       timestamp: new Date().toISOString(),
     });
+  }
+
+  private getResponsePayload(exception: unknown): {
+    status: number;
+    message: string;
+    error: string;
+  } {
+    if (
+      exception instanceof NotFoundError ||
+      exception instanceof ValidationError ||
+      exception instanceof UnauthorizedError ||
+      exception instanceof ForbiddenError
+    ) {
+      console.log('========>');
+      const status = exception.statusCode;
+      return {
+        status,
+        message: exception.message,
+        error: this.httpStatusName(status) ?? 'Error',
+      };
+    }
+
+    if (exception instanceof HttpException) {
+      const status = exception.getStatus();
+      const exceptionResponse = exception.getResponse();
+      const rawMessage =
+        typeof exceptionResponse === 'string'
+          ? exceptionResponse
+          : ((exceptionResponse as { message?: string | string[] } | undefined)
+              ?.message ?? 'Internal server error');
+      const message = Array.isArray(rawMessage)
+        ? rawMessage.join(', ')
+        : rawMessage;
+      const error =
+        typeof exceptionResponse === 'string'
+          ? 'Error'
+          : ((exceptionResponse as { error?: string } | undefined)?.error ??
+            this.httpStatusName(status) ??
+            'Error');
+      return { status, message, error };
+    }
+
+    return {
+      status: HttpStatus.INTERNAL_SERVER_ERROR,
+      message: 'Internal server error',
+      error: this.httpStatusName(HttpStatus.INTERNAL_SERVER_ERROR) ?? 'Error',
+    };
+  }
+
+  private httpStatusName(status: number): string | undefined {
+    return HttpStatus[status] as string | undefined;
   }
 
   private logErrorWithStackTrace(exception: unknown): void {

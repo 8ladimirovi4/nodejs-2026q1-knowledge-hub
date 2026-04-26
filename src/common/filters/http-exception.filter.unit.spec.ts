@@ -5,6 +5,12 @@ import {
   Logger,
   type ArgumentsHost,
 } from '@nestjs/common';
+import {
+  ForbiddenError,
+  NotFoundError,
+  UnauthorizedError,
+  ValidationError,
+} from '../errors';
 import { HttpExceptionFilter } from './http-exception.filter';
 
 type MockResponse = {
@@ -81,6 +87,55 @@ describe('HttpExceptionFilter', () => {
     );
     expect(errorSpy).toHaveBeenCalledWith('Custom failure', expect.any(String));
   });
+
+  it.each([
+    [
+      new NotFoundError('Resource missing'),
+      HttpStatus.NOT_FOUND,
+      'Resource missing',
+      'NOT_FOUND',
+    ],
+    [
+      new ValidationError('Invalid input'),
+      HttpStatus.BAD_REQUEST,
+      'Invalid input',
+      'BAD_REQUEST',
+    ],
+    [
+      new UnauthorizedError('No session'),
+      HttpStatus.UNAUTHORIZED,
+      'No session',
+      'UNAUTHORIZED',
+    ],
+    [
+      new ForbiddenError('Not allowed'),
+      HttpStatus.FORBIDDEN,
+      'Not allowed',
+      'FORBIDDEN',
+    ],
+  ] as const)(
+    'maps %s to status %i with message and HttpStatus name',
+    (err, expectedStatus, expectedMessage, expectedErrorName) => {
+      const host = createHost('/custom', response);
+
+      filter.catch(err, host);
+
+      expect(response.status).toHaveBeenCalledWith(expectedStatus);
+      expect(response.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          statusCode: expectedStatus,
+          message: expectedMessage,
+          error: expectedErrorName,
+          path: '/custom',
+          timestamp: expect.any(String),
+        }),
+      );
+      expect(errorSpy).toHaveBeenCalledWith(
+        expectedMessage,
+        expect.any(String),
+      );
+    },
+  );
 
   it('formats unknown errors as 500 Internal Server Error', () => {
     const host = createHost('/articles', response);
