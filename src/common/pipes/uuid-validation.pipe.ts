@@ -1,17 +1,21 @@
 import {
   ArgumentMetadata,
   Injectable,
-  ParseUUIDPipe,
   PipeTransform,
 } from '@nestjs/common';
+import { validate, version } from 'uuid';
+import { ValidationError } from 'src/common/errors';
 
 @Injectable()
-export class UuidValidationPipe
-  implements PipeTransform<string, Promise<string>>
-{
-  private readonly parseUuidPipe = new ParseUUIDPipe({ version: '4' });
-
-  transform(value: string, metadata: ArgumentMetadata): Promise<string> {
-    return this.parseUuidPipe.transform(value, metadata);
+export class UuidValidationPipe implements PipeTransform<string, string> {
+  transform(value: string, _metadata: ArgumentMetadata): string {
+    if (
+      typeof value !== 'string' ||
+      !validate(value) ||
+      version(value) !== 4
+    ) {
+      throw new ValidationError('id must be a valid UUID v4');
+    }
+    return value;
   }
 }

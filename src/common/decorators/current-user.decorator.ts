@@ -1,8 +1,5 @@
-import {
-  createParamDecorator,
-  ExecutionContext,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { createParamDecorator, ExecutionContext } from '@nestjs/common';
+import { UnauthorizedError } from 'src/common/errors';
 import type { JwtAccessPayload } from 'src/auth/types/jwt-access-payload.interface';
 
 export const CurrentUser = createParamDecorator(
@@ -11,7 +8,7 @@ export const CurrentUser = createParamDecorator(
       .switchToHttp()
       .getRequest<{ user?: JwtAccessPayload }>().user;
     if (!user) {
-      throw new UnauthorizedException();
+      throw new UnauthorizedError('Authenticated user is not present on the request');
     }
     return user;
   },

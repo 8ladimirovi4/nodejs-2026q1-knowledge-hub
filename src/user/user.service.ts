@@ -1,10 +1,5 @@
-import {
-  BadRequestException,
-  ConflictException,
-  ForbiddenException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { ConflictException, Injectable } from '@nestjs/common';
+import { ForbiddenError, NotFoundError, ValidationError } from 'src/common/errors';
 import type { Prisma } from '@prisma/client';
 import {
   applyOptionalPagination,
@@ -58,7 +53,7 @@ export class UserService {
   async findOne(id: string): Promise<PublicUser> {
     const row = await this.prisma.user.findUnique({ where: { id } });
     if (!row) {
-      throw new NotFoundException();
+      throw new NotFoundError('User not found');
     }
     return this.toPublic(prismaUserToDomain(row));
   }
@@ -98,11 +93,13 @@ export class UserService {
     dto: UpdateUserDto,
   ): Promise<PublicUser> {
     if (actor.userId !== id && actor.role !== UserRole.ADMIN) {
-      throw new ForbiddenException();
+      throw new ForbiddenError(
+        'You can only update your own user unless you are an administrator',
+      );
     }
 
     if (dto.role !== undefined && actor.role !== UserRole.ADMIN) {
-      throw new ForbiddenException();
+      throw new ForbiddenError('Only administrators can change user roles');
     }
 
     const hasLogin = dto.login !== undefined;
@@ -112,16 +109,20 @@ export class UserService {
     const touchesPassword = hasOld || hasNew;
 
     if (!hasLogin && !hasRole && !touchesPassword) {
-      throw new BadRequestException();
+      throw new ValidationError(
+        'Request must include at least one updatable field: login, role, or password change',
+      );
     }
     if (touchesPassword && (!hasOld || !hasNew)) {
-      throw new BadRequestException();
+      throw new ValidationError(
+        'Password change requires both oldPassword and newPassword',
+      );
     }
 
     const row = await this.prisma.user.findUnique({ where: { id } });
 
     if (!row) {
-      throw new NotFoundException();
+      throw new NotFoundError('User not found');
     }
     const user = prismaUserToDomain(row);
 
@@ -133,7 +134,7 @@ export class UserService {
         });
 
         if (taken) {
-          throw new BadRequestException(
+          throw new ValidationError(
             'no login or password, or they are not strings, or login is already taken',
           );
         }
@@ -148,7 +149,7 @@ export class UserService {
     if (touchesPassword) {
       const match = await bcrypt.compare(dto.oldPassword!, user.password);
       if (!match) {
-        throw new ForbiddenException();
+        throw new ForbiddenError('Current password is incorrect');
       }
       data.password = await bcrypt.hash(dto.newPassword!, requireSaltRounds());
     }
@@ -163,7 +164,7 @@ export class UserService {
   async remove(id: string): Promise<void> {
     const exists = await this.prisma.user.findUnique({ where: { id } });
     if (!exists) {
-      throw new NotFoundException();
+      throw new NotFoundError('User not found');
     }
     await this.prisma.$transaction(async (tx) => {
       await tx.user.delete({ where: { id } });

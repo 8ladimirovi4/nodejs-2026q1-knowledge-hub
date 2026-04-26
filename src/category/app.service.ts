@@ -1,4 +1,5 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
+import { NotFoundError } from 'src/common/errors';
 import {
   applyOptionalPagination,
   type PaginatedList,
@@ -31,7 +32,7 @@ export class CategoryService {
   async findOne(id: string): Promise<Category> {
     const row = await this.prisma.category.findUnique({ where: { id } });
     if (!row) {
-      throw new NotFoundException();
+      throw new NotFoundError('Category not found');
     }
     return prismaCategoryToDomain(row);
   }
@@ -50,7 +51,7 @@ export class CategoryService {
   async update(id: string, dto: UpdateCategoryDto): Promise<Category> {
     const existing = await this.prisma.category.findUnique({ where: { id } });
     if (!existing) {
-      throw new NotFoundException();
+      throw new NotFoundError('Category not found');
     }
     const row = await this.prisma.category.update({
       where: { id },
@@ -65,7 +66,7 @@ export class CategoryService {
   async remove(id: string): Promise<void> {
     const exists = await this.prisma.category.findUnique({ where: { id } });
     if (!exists) {
-      throw new NotFoundException();
+      throw new NotFoundError('Category not found');
     }
     await this.prisma.category.delete({ where: { id } });
   }

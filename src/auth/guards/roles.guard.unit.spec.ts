@@ -1,4 +1,4 @@
-import { ForbiddenException } from '@nestjs/common';
+import { ForbiddenError } from 'src/common/errors';
 import type { ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { UserRole } from 'src/storage/domain.types';
@@ -47,14 +47,14 @@ describe('RolesGuard', () => {
     expect(guard.canActivate(context)).toBe(true);
   });
 
-  it('throws ForbiddenException when required roles exist but request has no user', () => {
+  it('throws ForbiddenError when required roles exist but request has no user', () => {
     reflectorMock.getAllAndOverride = vi.fn().mockReturnValue([UserRole.ADMIN]);
     const { context } = createExecutionContextMock();
 
-    expect(() => guard.canActivate(context)).toThrow(ForbiddenException);
+    expect(() => guard.canActivate(context)).toThrow(ForbiddenError);
   });
 
-  it('throws ForbiddenException when user role is not in required roles', () => {
+  it('throws ForbiddenError when user role is not in required roles', () => {
     reflectorMock.getAllAndOverride = vi
       .fn()
       .mockReturnValue([UserRole.ADMIN, UserRole.EDITOR]);
@@ -64,7 +64,7 @@ describe('RolesGuard', () => {
       role: UserRole.VIEWER,
     });
 
-    expect(() => guard.canActivate(context)).toThrow(ForbiddenException);
+    expect(() => guard.canActivate(context)).toThrow(ForbiddenError);
   });
 
   it('returns true when user role is in required roles', () => {

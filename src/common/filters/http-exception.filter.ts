@@ -47,7 +47,6 @@ export class HttpExceptionFilter implements ExceptionFilter {
       exception instanceof UnauthorizedError ||
       exception instanceof ForbiddenError
     ) {
-      console.log('========>');
       const status = exception.statusCode;
       return {
         status,

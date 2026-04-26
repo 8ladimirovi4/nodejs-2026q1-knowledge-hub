@@ -1,5 +1,5 @@
-import { UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
+import { UnauthorizedError } from 'src/common/errors';
 import type { ExecutionContext } from '@nestjs/common';
 import { UserRole } from 'src/storage/domain.types';
 import { JwtAuthGuard } from './jwt-auth.guard';
@@ -65,16 +65,16 @@ describe('JwtAuthGuard', () => {
     expect(authServiceMock.validateAccessToken).not.toHaveBeenCalled();
   });
 
-  it('throws UnauthorizedException when token is missing', async () => {
+  it('throws UnauthorizedError when token is missing', async () => {
     reflectorMock.getAllAndOverride = vi.fn().mockReturnValue(false);
     const { context } = createExecutionContextMock({ path: '/user' });
 
     await expect(guard.canActivate(context)).rejects.toBeInstanceOf(
-      UnauthorizedException,
+      UnauthorizedError,
     );
   });
 
-  it('throws UnauthorizedException when authorization type is not Bearer', async () => {
+  it('throws UnauthorizedError when authorization type is not Bearer', async () => {
     reflectorMock.getAllAndOverride = vi.fn().mockReturnValue(false);
     const { context } = createExecutionContextMock({
       path: '/user',
@@ -82,14 +82,14 @@ describe('JwtAuthGuard', () => {
     });
 
     await expect(guard.canActivate(context)).rejects.toBeInstanceOf(
-      UnauthorizedException,
+      UnauthorizedError,
     );
   });
 
-  it('propagates UnauthorizedException when authService rejects invalid token', async () => {
+  it('propagates UnauthorizedError when authService rejects invalid token', async () => {
     reflectorMock.getAllAndOverride = vi.fn().mockReturnValue(false);
     authServiceMock.validateAccessToken.mockImplementationOnce(() => {
-      throw new UnauthorizedException('Invalid token');
+      throw new UnauthorizedError('Invalid or expired access token');
     });
     const { context } = createExecutionContextMock({
       path: '/user',
@@ -97,7 +97,7 @@ describe('JwtAuthGuard', () => {
     });
 
     await expect(guard.canActivate(context)).rejects.toBeInstanceOf(
-      UnauthorizedException,
+      UnauthorizedError,
     );
   });
 

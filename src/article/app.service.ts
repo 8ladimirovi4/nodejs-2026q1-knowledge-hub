@@ -1,8 +1,5 @@
-import {
-  ForbiddenException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
+import { ForbiddenError, NotFoundError } from 'src/common/errors';
 import {
   applyOptionalPagination,
   type PaginatedList,
@@ -60,7 +57,7 @@ export class ArticleService {
       include: { tags: true },
     });
     if (!row) {
-      throw new NotFoundException();
+      throw new NotFoundError('Article not found');
     }
     return prismaArticleToDomain(row);
   }
@@ -102,7 +99,7 @@ export class ArticleService {
       include: { tags: true },
     });
     if (!existing) {
-      throw new NotFoundException();
+      throw new NotFoundError('Article not found');
     }
 
     this.assertCanModifyArticle(actor, existing.authorId);
@@ -159,7 +156,7 @@ export class ArticleService {
   async remove(actor: JwtAccessPayload, id: string): Promise<void> {
     const exists = await this.prisma.article.findUnique({ where: { id } });
     if (!exists) {
-      throw new NotFoundException();
+      throw new NotFoundError('Article not found');
     }
 
     this.assertCanModifyArticle(actor, exists.authorId);
@@ -175,7 +172,7 @@ export class ArticleService {
       return;
     }
     if (authorId === null || authorId !== actor.userId) {
-      throw new ForbiddenException('Insufficient permissions');
+      throw new ForbiddenError('Insufficient permissions');
     }
   }
 }

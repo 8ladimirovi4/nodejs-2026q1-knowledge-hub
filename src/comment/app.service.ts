@@ -1,9 +1,5 @@
-import {
-  ForbiddenException,
-  Injectable,
-  NotFoundException,
-  UnprocessableEntityException,
-} from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
+import { ForbiddenError, NotFoundError, ValidationError } from 'src/common/errors';
 import { randomUUID } from 'crypto';
 import type { Comment } from 'src/storage/domain.types';
 import { prismaCommentToDomain } from 'src/storage/prisma-mappers';
@@ -40,7 +36,7 @@ export class CommentService {
   async findOne(id: string): Promise<Comment> {
     const row = await this.prisma.comment.findUnique({ where: { id } });
     if (!row) {
-      throw new NotFoundException();
+      throw new NotFoundError('Comment not found');
     }
     return prismaCommentToDomain(row);
   }
@@ -53,7 +49,7 @@ export class CommentService {
       where: { id: dto.articleId },
     });
     if (!article) {
-      throw new UnprocessableEntityException();
+      throw new ValidationError('Referenced article does not exist');
     }
 
     const authorId =
@@ -73,7 +69,7 @@ export class CommentService {
   async remove(actor: JwtAccessPayload, id: string): Promise<void> {
     const exists = await this.prisma.comment.findUnique({ where: { id } });
     if (!exists) {
-      throw new NotFoundException();
+      throw new NotFoundError('Comment not found');
     }
 
     this.assertCanDeleteComment(actor, exists.authorId);
@@ -89,7 +85,7 @@ export class CommentService {
       return;
     }
     if (authorId === null || authorId !== actor.userId) {
-      throw new ForbiddenException('Insufficient permissions');
+      throw new ForbiddenError('Insufficient permissions');
     }
   }
 }

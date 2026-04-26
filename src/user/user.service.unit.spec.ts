@@ -1,10 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import {
-  BadRequestException,
-  ConflictException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { ConflictException } from '@nestjs/common';
+import { ForbiddenError, NotFoundError, ValidationError } from 'src/common/errors';
 import { UserRole as PrismaUserRole } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { requireSaltRounds } from '../common/utils';
@@ -241,13 +237,11 @@ describe('UserService', () => {
   });
 
   describe('findOne', () => {
-    it('throws NotFoundException when user does not exist (findUnique returns null)', async () => {
+    it('throws NotFoundError when user does not exist (findUnique returns null)', async () => {
       prismaMock.user.findUnique.mockResolvedValue(null);
 
       const id = '11111111-1111-1111-1111-111111111111';
-      await expect(service.findOne(id)).rejects.toBeInstanceOf(
-        NotFoundException,
-      );
+      await expect(service.findOne(id)).rejects.toBeInstanceOf(NotFoundError);
       expect(prismaMock.user.findUnique).toHaveBeenCalledWith({
         where: { id },
       });
@@ -306,7 +300,7 @@ describe('UserService', () => {
   });
 
   describe('update', () => {
-    it('throws ForbiddenException when actor cannot edit user (not admin, not owner)', async () => {
+    it('throws ForbiddenError when actor cannot edit user (not admin, not owner)', async () => {
       const dto = { login: 'new_login' };
       const id = '11111111-1111-1111-1111-111111111111';
       const actor = {
@@ -316,11 +310,11 @@ describe('UserService', () => {
       };
 
       await expect(service.update(actor, id, dto)).rejects.toBeInstanceOf(
-        ForbiddenException,
+        ForbiddenError,
       );
     });
 
-    it('throws ForbiddenException when non-admin tries to change role', async () => {
+    it('throws ForbiddenError when non-admin tries to change role', async () => {
       const dto = { role: UserRole.ADMIN };
       const id = '11111111-1111-1111-1111-111111111111';
       const actor = {
@@ -330,12 +324,12 @@ describe('UserService', () => {
       };
 
       await expect(service.update(actor, id, dto)).rejects.toBeInstanceOf(
-        ForbiddenException,
+        ForbiddenError,
       );
       expect(prismaMock.user.findUnique).not.toHaveBeenCalled();
     });
 
-    it('throws BadRequestException when dto has no updatable fields', async () => {
+    it('throws ValidationError when dto has no updatable fields', async () => {
       const id = '11111111-1111-1111-1111-111111111111';
       const actor = {
         userId: id,
@@ -344,12 +338,12 @@ describe('UserService', () => {
       };
 
       await expect(service.update(actor, id, {})).rejects.toBeInstanceOf(
-        BadRequestException,
+        ValidationError,
       );
       expect(prismaMock.user.findUnique).not.toHaveBeenCalled();
     });
 
-    it('throws BadRequestException when password change is partial', async () => {
+    it('throws ValidationError when password change is partial', async () => {
       const id = '11111111-1111-1111-1111-111111111111';
       const actor = {
         userId: id,
@@ -359,11 +353,11 @@ describe('UserService', () => {
 
       await expect(
         service.update(actor, id, { oldPassword: 'old-only' }),
-      ).rejects.toBeInstanceOf(BadRequestException);
+      ).rejects.toBeInstanceOf(ValidationError);
       expect(prismaMock.user.findUnique).not.toHaveBeenCalled();
     });
 
-    it('throws NotFoundException when user id does not exist', async () => {
+    it('throws NotFoundError when user id does not exist', async () => {
       const dto = { role: UserRole.VIEWER };
       const id = '11111111-1111-1111-1111-111111111111';
       const actor = {
@@ -375,13 +369,13 @@ describe('UserService', () => {
       prismaMock.user.findUnique.mockResolvedValue(null);
 
       await expect(service.update(actor, id, dto)).rejects.toBeInstanceOf(
-        NotFoundException,
+        NotFoundError,
       );
       expect(prismaMock.user.findUnique).toHaveBeenCalledWith({
         where: { id },
       });
     });
-    it('throws BadRequestException when new login is already taken', async () => {
+    it('throws ValidationError when new login is already taken', async () => {
       const dto = { login: 'existing_login' };
       const id = '11111111-1111-1111-1111-111111111111';
       const actor = {
@@ -411,7 +405,7 @@ describe('UserService', () => {
         });
 
       await expect(service.update(actor, id, dto)).rejects.toBeInstanceOf(
-        BadRequestException,
+        ValidationError,
       );
       expect(prismaMock.user.findUnique).toHaveBeenNthCalledWith(1, {
         where: { id },
@@ -445,7 +439,7 @@ describe('UserService', () => {
       vi.mocked(bcrypt.compare).mockImplementationOnce(async () => false);
 
       await expect(service.update(actor, id, dto)).rejects.toBeInstanceOf(
-        ForbiddenException,
+        ForbiddenError,
       );
       expect(bcrypt.compare).toHaveBeenCalledWith(
         'wrong-old-password',
@@ -515,12 +509,10 @@ describe('UserService', () => {
   });
 
   describe('remove', () => {
-    it('throws NotFoundException when user does not exist before delete', async () => {
+    it('throws NotFoundError when user does not exist before delete', async () => {
       const id = '11111111-1111-1111-1111-111111111111';
       prismaMock.user.findUnique.mockResolvedValueOnce(null);
-      await expect(service.remove(id)).rejects.toBeInstanceOf(
-        NotFoundException,
-      );
+      await expect(service.remove(id)).rejects.toBeInstanceOf(NotFoundError);
       expect(prismaMock.user.findUnique).toHaveBeenNthCalledWith(1, {
         where: { id },
       });

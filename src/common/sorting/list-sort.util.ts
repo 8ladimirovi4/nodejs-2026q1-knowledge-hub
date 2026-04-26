@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { ValidationError } from 'src/common/errors';
 
 export type SortOrder = 'asc' | 'desc';
 
@@ -20,7 +20,7 @@ export function normalizeListSort(
   }
   const lo = oraw.toLowerCase();
   if (lo !== 'asc' && lo !== 'desc') {
-    throw new BadRequestException();
+    throw new ValidationError('order must be "asc" or "desc"');
   }
   return { sortBy: sb, order: lo };
 }
@@ -51,7 +51,7 @@ export function applyListSort<T extends object>(
     return items;
   }
   if (!allowedKeys.includes(sortBy)) {
-    throw new BadRequestException();
+    throw new ValidationError('sortBy is not an allowed field for this list');
   }
   const mul = (order ?? 'asc') === 'desc' ? -1 : 1;
   return [...items].sort((x, y) => {

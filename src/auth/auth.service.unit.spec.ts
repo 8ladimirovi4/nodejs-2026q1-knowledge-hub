@@ -2,10 +2,10 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import {
-  BadRequestException,
-  ForbiddenException,
-  UnauthorizedException,
-} from '@nestjs/common';
+  ForbiddenError,
+  UnauthorizedError,
+  ValidationError,
+} from 'src/common/errors';
 import * as bcrypt from 'bcryptjs';
 import { AuthService } from './auth.service';
 import { UserRole as PrismaUserRole } from '@prisma/client';
@@ -123,13 +123,13 @@ describe('AuthService', () => {
       expect(jwtServiceMock.verify).toHaveBeenCalledWith('token');
     });
 
-    it('throws UnauthorizedException when jwtService.verify throws', () => {
+    it('throws UnauthorizedError when jwtService.verify throws', () => {
       jwtServiceMock.verify.mockImplementationOnce(() => {
         throw new Error('invalid token');
       });
 
       expect(() => service.validateAccessToken('bad-token')).toThrow(
-        UnauthorizedException,
+        UnauthorizedError,
       );
     });
   });
@@ -157,14 +157,14 @@ describe('AuthService', () => {
       expect(prismaMock.user.findUnique).not.toHaveBeenCalled();
     });
 
-    it('throws BadRequestException when prisma.user.findUnique finds duplicate login', async () => {
+    it('throws ValidationError when prisma.user.findUnique finds duplicate login', async () => {
       prismaMock.user.findUnique.mockResolvedValueOnce(
         makePrismaUserRow({ login: 'duplicate' }),
       );
 
       await expect(
         service.signup({ login: 'duplicate', password: 'secret' }),
-      ).rejects.toBeInstanceOf(BadRequestException);
+      ).rejects.toBeInstanceOf(ValidationError);
       expect(userServiceMock.create).not.toHaveBeenCalled();
     });
 
@@ -214,15 +214,15 @@ describe('AuthService', () => {
   });
 
   describe('login', () => {
-    it('throws ForbiddenException when prisma.user.findUnique returns null', async () => {
+    it('throws ForbiddenError when prisma.user.findUnique returns null', async () => {
       prismaMock.user.findUnique.mockResolvedValueOnce(null);
 
       await expect(
         service.login({ login: 'unknown', password: 'secret' }),
-      ).rejects.toBeInstanceOf(ForbiddenException);
+      ).rejects.toBeInstanceOf(ForbiddenError);
     });
 
-    it('throws ForbiddenException when bcrypt.compare returns false (wrong password)', async () => {
+    it('throws ForbiddenError when bcrypt.compare returns false (wrong password)', async () => {
       prismaMock.user.findUnique.mockResolvedValueOnce(
         makePrismaUserRow({ login: 'john', password: 'hash' }),
       );
@@ -230,7 +230,7 @@ describe('AuthService', () => {
 
       await expect(
         service.login({ login: 'john', password: 'wrong' }),
-      ).rejects.toBeInstanceOf(ForbiddenException);
+      ).rejects.toBeInstanceOf(ForbiddenError);
     });
 
     it('returns accessToken/refreshToken when credentials are valid and issueTokenPair succeeds', async () => {
@@ -274,13 +274,13 @@ describe('AuthService', () => {
   });
 
   describe('refresh', () => {
-    it('throws UnauthorizedException when refreshToken is missing in dto', async () => {
+    it('throws UnauthorizedError when refreshToken is missing in dto', async () => {
       await expect(service.refresh({})).rejects.toBeInstanceOf(
-        UnauthorizedException,
+        UnauthorizedError,
       );
     });
 
-    it('throws ForbiddenException when jwtService.verify fails for refresh token', async () => {
+    it('throws ForbiddenError when jwtService.verify fails for refresh token', async () => {
       configServiceMock.get.mockReturnValueOnce('refresh-secret');
       jwtServiceMock.verify.mockImplementationOnce(() => {
         throw new Error('bad refresh');
@@ -288,10 +288,10 @@ describe('AuthService', () => {
 
       await expect(
         service.refresh({ refreshToken: 'bad-token' }),
-      ).rejects.toBeInstanceOf(ForbiddenException);
+      ).rejects.toBeInstanceOf(ForbiddenError);
     });
 
-    it('throws ForbiddenException when refresh token is already revoked in blacklist', async () => {
+    it('throws ForbiddenError when refresh token is already revoked in blacklist', async () => {
       configServiceMock.get.mockReturnValueOnce('refresh-secret');
       jwtServiceMock.verify.mockReturnValueOnce({
         userId: 'u-1',
@@ -302,10 +302,10 @@ describe('AuthService', () => {
 
       await expect(
         service.refresh({ refreshToken: 'revoked-token' }),
-      ).rejects.toBeInstanceOf(ForbiddenException);
+      ).rejects.toBeInstanceOf(ForbiddenError);
     });
 
-    it('throws ForbiddenException when user from decoded payload does not exist', async () => {
+    it('throws ForbiddenError when user from decoded payload does not exist', async () => {
       configServiceMock.get.mockReturnValueOnce('refresh-secret');
       jwtServiceMock.verify.mockReturnValueOnce({
         userId: 'u-1',
@@ -317,7 +317,7 @@ describe('AuthService', () => {
 
       await expect(
         service.refresh({ refreshToken: 'valid-token' }),
-      ).rejects.toBeInstanceOf(ForbiddenException);
+      ).rejects.toBeInstanceOf(ForbiddenError);
     });
 
     it('returns new token pair when refresh token is valid and user exists', async () => {
@@ -352,13 +352,13 @@ describe('AuthService', () => {
   });
 
   describe('logout', () => {
-    it('throws UnauthorizedException when refreshToken is missing in dto', async () => {
+    it('throws UnauthorizedError when refreshToken is missing in dto', async () => {
       await expect(service.logout({})).rejects.toBeInstanceOf(
-        UnauthorizedException,
+        UnauthorizedError,
       );
     });
 
-    it('throws ForbiddenException when jwtService.verify fails for refresh token', async () => {
+    it('throws ForbiddenError when jwtService.verify fails for refresh token', async () => {
       configServiceMock.get.mockReturnValueOnce('refresh-secret');
       jwtServiceMock.verify.mockImplementationOnce(() => {
         throw new Error('bad refresh');
@@ -366,7 +366,7 @@ describe('AuthService', () => {
 
       await expect(
         service.logout({ refreshToken: 'bad-token' }),
-      ).rejects.toBeInstanceOf(ForbiddenException);
+      ).rejects.toBeInstanceOf(ForbiddenError);
     });
 
     it('revokes refresh token and returns success message when token is valid', async () => {

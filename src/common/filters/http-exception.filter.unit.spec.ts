@@ -1,10 +1,4 @@
-import {
-  BadRequestException,
-  HttpException,
-  HttpStatus,
-  Logger,
-  type ArgumentsHost,
-} from '@nestjs/common';
+import { HttpException, HttpStatus, Logger, type ArgumentsHost } from '@nestjs/common';
 import {
   ForbiddenError,
   NotFoundError,
@@ -47,17 +41,17 @@ describe('HttpExceptionFilter', () => {
     errorSpy.mockRestore();
   });
 
-  it('formats HttpException with status/message/error', () => {
+  it('formats ValidationError with status/message/error', () => {
     const host = createHost('/user', response);
 
-    filter.catch(new BadRequestException('Validation failed'), host);
+    filter.catch(new ValidationError('Validation failed'), host);
 
     expect(response.status).toHaveBeenCalledWith(HttpStatus.BAD_REQUEST);
     expect(response.json).toHaveBeenCalledWith(
       expect.objectContaining({
         statusCode: HttpStatus.BAD_REQUEST,
         message: 'Validation failed',
-        error: 'Bad Request',
+        error: 'BAD_REQUEST',
         path: '/user',
         timestamp: expect.any(String),
       }),

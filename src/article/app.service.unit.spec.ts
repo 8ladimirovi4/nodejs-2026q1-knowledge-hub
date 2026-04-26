@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ForbiddenException, Logger, NotFoundException } from '@nestjs/common';
+import { Logger } from '@nestjs/common';
+import { ForbiddenError, NotFoundError } from 'src/common/errors';
 import { ArticleStatus as PrismaArticleStatus } from '@prisma/client';
 import { ArticleService } from './app.service';
 import { PrismaService } from 'src/prisma/prisma.service';
@@ -157,12 +158,10 @@ describe('ArticleService', () => {
       });
     });
 
-    it('throws NotFoundException when article does not exist', async () => {
+    it('throws NotFoundError when article does not exist', async () => {
       const id = '11111111-1111-1111-1111-111111111111';
       prismaMock.article.findUnique.mockResolvedValueOnce(null);
-      await expect(service.findOne(id)).rejects.toBeInstanceOf(
-        NotFoundException,
-      );
+      await expect(service.findOne(id)).rejects.toBeInstanceOf(NotFoundError);
     });
   });
 
@@ -255,7 +254,7 @@ describe('ArticleService', () => {
   });
 
   describe('update', () => {
-    it('throws NotFoundException when existing article is missing', async () => {
+    it('throws NotFoundError when existing article is missing', async () => {
       prismaMock.article.findUnique.mockResolvedValueOnce(null);
       await expect(
         service.update(
@@ -263,10 +262,10 @@ describe('ArticleService', () => {
           'missing-id',
           { title: 'new title' },
         ),
-      ).rejects.toBeInstanceOf(NotFoundException);
+      ).rejects.toBeInstanceOf(NotFoundError);
     });
 
-    it('throws ForbiddenException when non-admin is not article owner', async () => {
+    it('throws ForbiddenError when non-admin is not article owner', async () => {
       prismaMock.article.findUnique.mockResolvedValueOnce(
         makeArticleRow({ authorId: 'owner-id' }),
       );
@@ -277,7 +276,7 @@ describe('ArticleService', () => {
           'article-id',
           { title: 'new title' },
         ),
-      ).rejects.toBeInstanceOf(ForbiddenException);
+      ).rejects.toBeInstanceOf(ForbiddenError);
     });
 
     it('allows admin and updates scalar fields', async () => {
@@ -415,17 +414,17 @@ describe('ArticleService', () => {
   });
 
   describe('remove', () => {
-    it('throws NotFoundException when article is missing', async () => {
+    it('throws NotFoundError when article is missing', async () => {
       prismaMock.article.findUnique.mockResolvedValueOnce(null);
       await expect(
         service.remove(
           { userId: 'u1', login: 'admin', role: UserRole.ADMIN },
           'missing',
         ),
-      ).rejects.toBeInstanceOf(NotFoundException);
+      ).rejects.toBeInstanceOf(NotFoundError);
     });
 
-    it('throws ForbiddenException when non-admin is not owner', async () => {
+    it('throws ForbiddenError when non-admin is not owner', async () => {
       prismaMock.article.findUnique.mockResolvedValueOnce(
         makeArticleRow({ authorId: 'owner-id' }),
       );
@@ -434,7 +433,7 @@ describe('ArticleService', () => {
           { userId: 'another-user', login: 'editor', role: UserRole.EDITOR },
           'article-id',
         ),
-      ).rejects.toBeInstanceOf(ForbiddenException);
+      ).rejects.toBeInstanceOf(ForbiddenError);
     });
 
     it('deletes article when actor is admin', async () => {

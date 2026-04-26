@@ -1,9 +1,5 @@
-import {
-  CanActivate,
-  ExecutionContext,
-  Injectable,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
+import { UnauthorizedError } from 'src/common/errors';
 import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
 import { AuthService } from 'src/auth/auth.service';
@@ -32,7 +28,7 @@ export class JwtAuthGuard implements CanActivate {
 
     const token = this.extractTokenFromHeader(request);
     if (!token) {
-      throw new UnauthorizedException('No token provided');
+      throw new UnauthorizedError('No token provided');
     }
 
     const payload = this.authService.validateAccessToken(token);

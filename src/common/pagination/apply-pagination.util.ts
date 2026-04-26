@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { ValidationError } from 'src/common/errors';
 
 export type PaginatedList<T> = {
   total: number;
@@ -25,7 +25,7 @@ export function applyOptionalPagination<T>(
     return items;
   }
   if (hasPage !== hasLimit) {
-    throw new BadRequestException(
+    throw new ValidationError(
       'Pagination requires both page and limit query parameters',
     );
   }
@@ -38,7 +38,9 @@ export function applyOptionalPagination<T>(
     limitNum < 1 ||
     limitNum > maxLimit
   ) {
-    throw new BadRequestException();
+    throw new ValidationError(
+      'Invalid page or limit: use positive integers; limit must not exceed the maximum',
+    );
   }
   const total = items.length;
   const start = (pageNum - 1) * limitNum;
