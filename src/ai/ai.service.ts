@@ -6,12 +6,14 @@ import { AnalyzeArticleDto } from './dto/analyze-ai.dto';
 import { NotFoundError } from 'src/common/errors';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { AiResponseCacheService } from './ai-response-cache.service';
+import { GeminiService, GeminiOperation } from './gemini.service';
 
 @Injectable()
 export class AiService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly cache: AiResponseCacheService,
+    private readonly gemini: GeminiService,
   ) {}
 
   generatePrompt(_aiGeneratePromptDto: AiGeneratePromptDto) {
@@ -37,7 +39,10 @@ export class AiService {
     if (cached !== undefined) {
       return cached;
     }
-    const result = 'This action summarizes an article';
+    const result = await this.gemini.generateContent({
+      operation: GeminiOperation.Summarize,
+      userPrompt: `${article.title}\n\n${article.content}`,
+    });
     this.cache.set(key, result);
     return result;
   }
@@ -62,7 +67,10 @@ export class AiService {
     if (cached !== undefined) {
       return cached;
     }
-    const result = 'This action translates an article';
+    const result = await this.gemini.generateContent({
+      operation: GeminiOperation.Translate,
+      userPrompt: `${article.title}\n\n${article.content}`,
+    });
     this.cache.set(key, result);
     return result;
   }
@@ -77,6 +85,9 @@ export class AiService {
     if (!article) {
       throw new NotFoundError("article doesn't exist");
     }
-    return 'This action analyzes an article';
+    return this.gemini.generateContent({
+      operation: GeminiOperation.Analyze,
+      userPrompt: `${article.title}\n\n${article.content}`,
+    });
   }
 }
