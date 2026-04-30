@@ -6,13 +6,14 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
-import { ThrottlerGuard } from '@nestjs/throttler';
+import { SkipThrottle, ThrottlerGuard } from '@nestjs/throttler';
 import { Public } from 'src/common/decorators/public.decorator';
 import { AuthService } from './auth.service';
 import { AuthDto } from './dto/auth.dto';
 import { RefreshTokenDto } from './dto/refreshTokenDto';
 
 @Public()
+@SkipThrottle({ ai: true })
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}

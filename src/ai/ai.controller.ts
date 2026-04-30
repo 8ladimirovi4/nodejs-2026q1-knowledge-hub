@@ -6,8 +6,11 @@ import {
   ParseUUIDPipe,
   HttpCode,
   HttpStatus,
+  UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth } from '@nestjs/swagger';
+import { SkipThrottle } from '@nestjs/throttler';
+import { AiThrottlerGuard } from './ai-throttler.guard';
 import { AiService } from './ai.service';
 import { SummarizeArticleDto } from './dto/summarize-ai.dto';
 import { TranslateArticleDto } from './dto/translate-ai.dto';
@@ -15,6 +18,8 @@ import { AnalyzeArticleDto } from './dto/analyze-ai.dto';
 import { AiGeneratePromptDto } from './dto/generate-ai.dto';
 
 @ApiBearerAuth('access-token')
+@SkipThrottle({ auth: true })
+@UseGuards(AiThrottlerGuard)
 @Controller('ai')
 export class AiController {
   constructor(private readonly aiService: AiService) {}
