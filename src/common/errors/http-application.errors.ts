@@ -1,7 +1,7 @@
 import { HttpStatus } from '@nestjs/common';
 
 export class NotFoundError extends Error {
-  readonly statusCode = HttpStatus.NOT_FOUND;
+  readonly statusCode = HttpStatus.NOT_FOUND; //code 404
 
   constructor(message: string) {
     super(message);
@@ -10,7 +10,7 @@ export class NotFoundError extends Error {
 }
 
 export class ValidationError extends Error {
-  readonly statusCode = HttpStatus.BAD_REQUEST;
+  readonly statusCode = HttpStatus.BAD_REQUEST; //code 400
 
   constructor(message: string) {
     super(message);
@@ -19,7 +19,7 @@ export class ValidationError extends Error {
 }
 
 export class UnauthorizedError extends Error {
-  readonly statusCode = HttpStatus.UNAUTHORIZED;
+  readonly statusCode = HttpStatus.UNAUTHORIZED; //401
 
   constructor(message: string) {
     super(message);
@@ -28,7 +28,7 @@ export class UnauthorizedError extends Error {
 }
 
 export class ForbiddenError extends Error {
-  readonly statusCode = HttpStatus.FORBIDDEN;
+  readonly statusCode = HttpStatus.FORBIDDEN; //403
 
   constructor(message: string) {
     super(message);
