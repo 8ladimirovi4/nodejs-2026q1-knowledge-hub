@@ -1,17 +1,36 @@
-import { Injectable } from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 export enum GeminiOperation {
   Summarize = 'summarize',
   Translate = 'translate',
   Analyze = 'analyze',
+  Generate = 'generate',
 }
+
+type GeminiPart = { text?: string };
+
+type GeminiGenerateResponse = {
+  candidates?: Array<{
+    content?: { parts?: GeminiPart[] };
+    finishReason?: string;
+  }>;
+  promptFeedback?: { blockReason?: string };
+};
+
+type GeminiErrorBody = {
+  error?: { code?: number; message?: string; status?: string };
+};
+
+const MAX_RETRIES = 3;
 
 @Injectable()
 export class GeminiService {
+  private readonly logger = new Logger(GeminiService.name);
   private readonly apiBaseUrl: string;
   private readonly model: string;
   private readonly apiKey: string;
+  private readonly timeoutMs: number;
 
   constructor(private readonly config: ConfigService) {
     this.apiBaseUrl =
@@ -19,21 +38,268 @@ export class GeminiService {
       'https://generativelanguage.googleapis.com';
     this.model = this.config.get<string>('GEMINI_MODEL') ?? 'gemini-2.5-flash';
     this.apiKey = this.config.get<string>('GEMINI_API_KEY') ?? '';
+    const rawTimeout = Number(
+      this.config.get<string>('GEMINI_HTTP_TIMEOUT_MS'),
+    );
+    this.timeoutMs =
+      Number.isFinite(rawTimeout) && rawTimeout > 0 ? rawTimeout : 120_000;
   }
 
   async generateContent(options: {
     operation: GeminiOperation;
     userPrompt: string;
   }): Promise<string> {
-    void options.userPrompt;
-    console.log('========>', options.userPrompt);
-    switch (options.operation) {
-      case GeminiOperation.Summarize:
-        return 'This action summarizes an article';
-      case GeminiOperation.Translate:
-        return 'This action translates an article';
-      case GeminiOperation.Analyze:
-        return 'This action analyzes an article';
+    if (!this.apiKey.trim()) {
+      throw new HttpException(
+        'AI provider is not configured',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
+
+    const body = {
+      contents: [
+        {
+          role: 'user',
+          parts: [{ text: options.userPrompt }],
+        },
+      ],
+      generationConfig: {
+        temperature: 0.4,
+        maxOutputTokens: 8192,
+        responseMimeType: 'text/plain',
+        thinkingConfig: {
+          thinkingBudget: 0,
+        },
+      },
+    };
+
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        return await this.postGenerateContentOnce(body, options.operation);
+      } catch (err) {
+        if (!(err instanceof HttpException)) {
+          throw err;
+        }
+        const status = err.getStatus();
+        const shouldRetry =
+          (status === HttpStatus.TOO_MANY_REQUESTS ||
+            status === HttpStatus.SERVICE_UNAVAILABLE) &&
+          attempt < MAX_RETRIES;
+
+        if (!shouldRetry) {
+          if (
+            status === HttpStatus.TOO_MANY_REQUESTS &&
+            attempt >= MAX_RETRIES
+          ) {
+            throw new HttpException(
+              'Language model rate limit exceeded after retries',
+              HttpStatus.SERVICE_UNAVAILABLE,
+            );
+          }
+          throw err;
+        }
+
+        const payload = err.getResponse();
+        const retryAfterSec =
+          typeof payload === 'object' &&
+          payload !== null &&
+          'retryAfterSec' in payload
+            ? (payload as { retryAfterSec?: number }).retryAfterSec
+            : undefined;
+
+        const delayMs = this.computeBackoffMs(attempt, retryAfterSec);
+
+        this.logger.warn(
+          `Gemini request retry ${attempt + 1}/${MAX_RETRIES} after ${status} (${options.operation}), delay ${delayMs}ms`,
+        );
+        await sleep(delayMs);
+      }
+    }
+
+    throw new HttpException(
+      'Language model request failed after retries',
+      HttpStatus.SERVICE_UNAVAILABLE,
+    );
   }
+
+  private computeBackoffMs(attempt: number, retryAfterSec?: number): number {
+    if (
+      retryAfterSec !== undefined &&
+      Number.isFinite(retryAfterSec) &&
+      retryAfterSec > 0
+    ) {
+      return Math.min(retryAfterSec * 1000, 60_000);
+    }
+    return Math.min(1000 * 2 ** attempt, 10_000);
+  }
+
+  private buildUrl(): string {
+    const base = this.apiBaseUrl.replace(/\/$/, '');
+    const modelId = encodeURIComponent(this.model);
+    return `${base}/v1beta/models/${modelId}:generateContent`;
+  }
+
+  private async postGenerateContentOnce(
+    body: Record<string, unknown>,
+    operation: GeminiOperation,
+  ): Promise<string> {
+    const url = this.buildUrl();
+    let response: Response;
+
+    try {
+      response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': this.apiKey,
+        },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(this.timeoutMs),
+      });
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : 'Network error calling Gemini';
+      this.logger.error(
+        `Gemini network/timeout (${operation}): ${message}`,
+        err instanceof Error ? err.stack : undefined,
+      );
+      throw new HttpException(
+        'Language model service is temporarily unavailable',
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
+    }
+
+    let json: unknown;
+    try {
+      json = await response.json();
+    } catch {
+      json = null;
+    }
+
+    if (!response.ok) {
+      const retryAfterHeader = response.headers.get('retry-after');
+      throw this.mapGeminiFailure(response.status, json, retryAfterHeader);
+    }
+
+    return this.extractTextFromSuccess(json);
+  }
+
+  private mapGeminiFailure(
+    status: number,
+    json: unknown,
+    retryAfterHeader?: string | null,
+  ): HttpException {
+    const msg = this.safeGeminiErrorMessage(json);
+
+    if (status === 429) {
+      let sec: number | undefined;
+      if (retryAfterHeader) {
+        const n = Number(retryAfterHeader);
+        if (Number.isFinite(n) && n > 0) {
+          sec = Math.ceil(n);
+        }
+      }
+      sec ??= this.parseRetryAfterFromError(json);
+      return new HttpException(
+        {
+          message: 'Upstream rate limit exceeded',
+          error: 'Too Many Requests',
+          retryAfterSec: sec,
+        },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+
+    if (status === 503 || status === 502 || status === 504) {
+      return new HttpException(
+        'Language model service is temporarily unavailable',
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
+    }
+
+    if (status === 401 || status === 403) {
+      this.logger.error(`Gemini auth error (status ${status}): ${msg}`);
+      return new HttpException(
+        'AI provider authentication failed',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+
+    if (status >= 400 && status < 500) {
+      this.logger.warn(`Gemini client error (status ${status}): ${msg}`);
+      return new HttpException(
+        'Invalid request to language model',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+
+    this.logger.error(`Gemini server error (status ${status}): ${msg}`);
+    return new HttpException(
+      'Language model service error',
+      HttpStatus.SERVICE_UNAVAILABLE,
+    );
+  }
+
+  private parseRetryAfterFromError(json: unknown): number | undefined {
+    if (!json || typeof json !== 'object') return undefined;
+    const details = (json as GeminiErrorBody).error?.message;
+    if (typeof details !== 'string') return undefined;
+    const m = details.match(/retry in ([\d.]+)s/i);
+    if (m) {
+      const s = Number(m[1]);
+      if (Number.isFinite(s) && s > 0) return Math.ceil(s);
+    }
+    return undefined;
+  }
+
+  private safeGeminiErrorMessage(json: unknown): string {
+    if (!json || typeof json !== 'object') {
+      return 'unknown error body';
+    }
+    const e = (json as GeminiErrorBody).error;
+    return e?.message ?? JSON.stringify(json).slice(0, 500);
+  }
+
+  private extractTextFromSuccess(json: unknown): string {
+    const data = json as GeminiGenerateResponse;
+    if (data.promptFeedback?.blockReason) {
+      throw new HttpException(
+        'Content was blocked by the language model policy',
+        HttpStatus.BAD_GATEWAY,
+      );
+    }
+
+    const candidates = data.candidates;
+    if (!candidates?.length) {
+      throw new HttpException(
+        'Empty response from language model',
+        HttpStatus.BAD_GATEWAY,
+      );
+    }
+
+    const parts = candidates[0]?.content?.parts;
+    if (!parts?.length) {
+      const reason = candidates[0]?.finishReason;
+      throw new HttpException(
+        reason
+          ? `Model response finished with ${reason}`
+          : 'No text in model response',
+        HttpStatus.BAD_GATEWAY,
+      );
+    }
+
+    const text = parts.map((p) => p.text ?? '').join('');
+    if (!text.trim()) {
+      throw new HttpException(
+        'Model returned only empty text',
+        HttpStatus.BAD_GATEWAY,
+      );
+    }
+
+    return text;
+  }
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }

@@ -7,6 +7,12 @@ import { NotFoundError } from 'src/common/errors';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { AiResponseCacheService } from './ai-response-cache.service';
 import { GeminiService, GeminiOperation } from './gemini.service';
+import {
+  buildSummarizePrompt,
+  buildTranslatePrompt,
+  buildAnalyzePrompt,
+  buildGeneratePrompt,
+} from './prompts';
 
 @Injectable()
 export class AiService {
@@ -16,8 +22,12 @@ export class AiService {
     private readonly gemini: GeminiService,
   ) {}
 
-  generatePrompt(_aiGeneratePromptDto: AiGeneratePromptDto) {
-    return 'This action adds a new ai response';
+  async generatePrompt(aiGeneratePromptDto: AiGeneratePromptDto) {
+    const userPrompt = buildGeneratePrompt(aiGeneratePromptDto);
+    return this.gemini.generateContent({
+      operation: GeminiOperation.Generate,
+      userPrompt,
+    });
   }
 
   async summarizeArticle(
@@ -41,7 +51,7 @@ export class AiService {
     }
     const result = await this.gemini.generateContent({
       operation: GeminiOperation.Summarize,
-      userPrompt: `${article.title}\n\n${article.content}`,
+      userPrompt: buildSummarizePrompt(article, summarizeArticleDto),
     });
     this.cache.set(key, result);
     return result;
@@ -69,7 +79,7 @@ export class AiService {
     }
     const result = await this.gemini.generateContent({
       operation: GeminiOperation.Translate,
-      userPrompt: `${article.title}\n\n${article.content}`,
+      userPrompt: buildTranslatePrompt(article, translateArticleDto),
     });
     this.cache.set(key, result);
     return result;
@@ -77,7 +87,7 @@ export class AiService {
 
   async analyzeArticle(
     articleId: string,
-    _analyzeArticleDto: AnalyzeArticleDto,
+    analyzeArticleDto: AnalyzeArticleDto,
   ) {
     const article = await this.prisma.article.findUnique({
       where: { id: articleId },
@@ -87,7 +97,7 @@ export class AiService {
     }
     return this.gemini.generateContent({
       operation: GeminiOperation.Analyze,
-      userPrompt: `${article.title}\n\n${article.content}`,
+      userPrompt: buildAnalyzePrompt(article, analyzeArticleDto),
     });
   }
 }
