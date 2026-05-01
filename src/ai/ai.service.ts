@@ -1,4 +1,4 @@
-import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { AiGeneratePromptDto } from './dto/generate-ai.dto';
 import {
   SummarizeArticleDto,
@@ -20,8 +20,13 @@ import {
 import { NotFoundError } from 'src/common/errors';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { AiResponseCacheService } from './ai-response-cache.service';
-import { GeminiService, GeminiOperation } from './gemini.service';
-import { AiUsageService, AI_USAGE_ENDPOINT } from './ai-usage.service';
+import { GeminiService } from './gemini.service';
+import { GeminiOperation } from './gemini-operation';
+import {
+  AiUsageService,
+  AI_USAGE_ENDPOINT,
+  type AiUsageEndpointLabel,
+} from './ai-usage.service';
 import {
   buildSummarizePrompt,
   buildTranslatePrompt,
@@ -29,8 +34,15 @@ import {
   buildGeneratePrompt,
 } from './prompts';
 
+type AiObservabilityState = {
+  geminiMs: number | null;
+  cache: 'hit' | 'miss' | 'n/a';
+};
+
 @Injectable()
 export class AiService {
+  private readonly logger = new Logger(AiService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly cache: AiResponseCacheService,
@@ -38,41 +50,109 @@ export class AiService {
     private readonly aiUsage: AiUsageService,
   ) {}
 
-  async generatePrompt(aiGeneratePromptDto: AiGeneratePromptDto) {
+  private async runObservedAi<T>(
+    endpoint: AiUsageEndpointLabel,
+    traceId: string,
+    meta: { articleId?: string },
+    run: (o: AiObservabilityState) => Promise<T>,
+  ): Promise<T> {
+    const o: AiObservabilityState = { geminiMs: null, cache: 'n/a' };
+    const wallStart = Date.now();
+    let outcome: 'ok' | 'not_found' | 'error' = 'ok';
+    try {
+      return await run(o);
+    } catch (e) {
+      outcome = e instanceof NotFoundError ? 'not_found' : 'error';
+      throw e;
+    } finally {
+      const totalMs = Date.now() - wallStart;
+      this.aiUsage.recordEndpointWallTime(endpoint, totalMs);
+      this.aiUsage.recordDiagnostic({
+        traceId,
+        endpoint,
+        totalMs,
+        geminiMs: o.geminiMs,
+        cache: o.cache,
+        outcome,
+      });
+      const logPayload: Record<string, unknown> = {
+        context: 'AI',
+        traceId,
+        endpoint,
+        totalMs,
+        geminiMs: o.geminiMs,
+        cache: o.cache,
+        outcome,
+      };
+      if (meta.articleId !== undefined) {
+        logPayload.articleId = meta.articleId;
+      }
+      this.logger.log(JSON.stringify(logPayload));
+    }
+  }
+
+  async generatePrompt(
+    aiGeneratePromptDto: AiGeneratePromptDto,
+    traceId: string,
+  ): Promise<string> {
     this.aiUsage.recordAiRequest(AI_USAGE_ENDPOINT.GENERATE);
-    const userPrompt = buildGeneratePrompt(aiGeneratePromptDto);
-    return this.gemini.generateContent({
-      operation: GeminiOperation.Generate,
-      userPrompt,
-    });
+    return this.runObservedAi(
+      AI_USAGE_ENDPOINT.GENERATE,
+      traceId,
+      {},
+      async (o) => {
+        const userPrompt = buildGeneratePrompt(aiGeneratePromptDto);
+        const { text, durationMs } = await this.gemini.generateContent({
+          operation: GeminiOperation.Generate,
+          userPrompt,
+          traceId,
+        });
+        o.geminiMs = durationMs;
+        return text;
+      },
+    );
   }
 
   async summarizeArticle(
     articleId: string,
     summarizeArticleDto: SummarizeArticleDto,
+    traceId: string,
   ): Promise<SummarizeArticleResponse> {
     this.aiUsage.recordAiRequest(AI_USAGE_ENDPOINT.SUMMARIZE);
-    const article = await this.prisma.article.findUnique({
-      where: { id: articleId },
-    });
-    if (!article) {
-      throw new NotFoundError("article doesn't exist");
-    }
-    const key = this.cache.summarizeKey(
-      articleId,
-      article.updatedAt,
-      summarizeArticleDto.maxLength,
+    return this.runObservedAi(
+      AI_USAGE_ENDPOINT.SUMMARIZE,
+      traceId,
+      { articleId },
+      async (o) => {
+        const article = await this.prisma.article.findUnique({
+          where: { id: articleId },
+        });
+        if (!article) {
+          throw new NotFoundError("article doesn't exist");
+        }
+        const key = this.cache.summarizeKey(
+          articleId,
+          article.updatedAt,
+          summarizeArticleDto.maxLength,
+        );
+        const cached = this.cache.get<string>(key);
+        if (cached !== undefined) {
+          o.cache = 'hit';
+          this.aiUsage.recordSummarizeCacheHit(true);
+          return this.toSummarizeResponse(articleId, article, cached);
+        }
+        this.aiUsage.recordSummarizeCacheHit(false);
+        o.cache = 'miss';
+        const { text, durationMs } = await this.gemini.generateContent({
+          operation: GeminiOperation.Summarize,
+          userPrompt: buildSummarizePrompt(article, summarizeArticleDto),
+          traceId,
+        });
+        o.geminiMs = durationMs;
+        this.cache.set(key, text);
+        return this.toSummarizeResponse(articleId, article, text);
+      },
     );
-    const cached = this.cache.get<string>(key);
-    if (cached !== undefined) {
-      return this.toSummarizeResponse(articleId, article, cached);
-    }
-    const summary = await this.gemini.generateContent({
-      operation: GeminiOperation.Summarize,
-      userPrompt: buildSummarizePrompt(article, summarizeArticleDto),
-    });
-    this.cache.set(key, summary);
-    return this.toSummarizeResponse(articleId, article, summary);
   }
 
   private toSummarizeResponse(
@@ -92,36 +172,52 @@ export class AiService {
   async translateArticle(
     articleId: string,
     translateArticleDto: TranslateArticleDto,
+    traceId: string,
   ): Promise<TranslateArticleResponse> {
     this.aiUsage.recordAiRequest(AI_USAGE_ENDPOINT.TRANSLATE);
-    const article = await this.prisma.article.findUnique({
-      where: { id: articleId },
-    });
-    if (!article) {
-      throw new NotFoundError("article doesn't exist");
-    }
-    const key = this.cache.translateKey(
-      articleId,
-      article.updatedAt,
-      translateArticleDto.targetLanguage,
-      translateArticleDto.sourceLanguage,
+    return this.runObservedAi(
+      AI_USAGE_ENDPOINT.TRANSLATE,
+      traceId,
+      { articleId },
+      async (o) => {
+        const article = await this.prisma.article.findUnique({
+          where: { id: articleId },
+        });
+        if (!article) {
+          throw new NotFoundError("article doesn't exist");
+        }
+        const key = this.cache.translateKey(
+          articleId,
+          article.updatedAt,
+          translateArticleDto.targetLanguage,
+          translateArticleDto.sourceLanguage,
+        );
+        const cached = this.cache.get<TranslateArticleModelPayload>(key);
+        if (cached !== undefined) {
+          o.cache = 'hit';
+          this.aiUsage.recordTranslateCacheHit(true);
+          return { articleId, ...cached };
+        }
+        this.aiUsage.recordTranslateCacheHit(false);
+        o.cache = 'miss';
+        const { text: rawJson, durationMs } = await this.gemini.generateContent(
+          {
+            operation: GeminiOperation.Translate,
+            userPrompt: buildTranslatePrompt(article, translateArticleDto),
+            responseMimeType: 'application/json',
+            responseJsonSchema: TRANSLATE_RESPONSE_JSON_SCHEMA,
+            traceId,
+          },
+        );
+        o.geminiMs = durationMs;
+        const payload = this.parseTranslateModelPayload(
+          rawJson,
+          translateArticleDto.sourceLanguage,
+        );
+        this.cache.set(key, payload);
+        return { articleId, ...payload };
+      },
     );
-    const cached = this.cache.get<TranslateArticleModelPayload>(key);
-    if (cached !== undefined) {
-      return { articleId, ...cached };
-    }
-    const rawJson = await this.gemini.generateContent({
-      operation: GeminiOperation.Translate,
-      userPrompt: buildTranslatePrompt(article, translateArticleDto),
-      responseMimeType: 'application/json',
-      responseJsonSchema: TRANSLATE_RESPONSE_JSON_SCHEMA,
-    });
-    const payload = this.parseTranslateModelPayload(
-      rawJson,
-      translateArticleDto.sourceLanguage,
-    );
-    this.cache.set(key, payload);
-    return { articleId, ...payload };
   }
 
   private parseTranslateModelPayload(
@@ -170,22 +266,34 @@ export class AiService {
   async analyzeArticle(
     articleId: string,
     analyzeArticleDto: AnalyzeArticleDto,
+    traceId: string,
   ): Promise<AnalyzeArticleResponse> {
     this.aiUsage.recordAiRequest(AI_USAGE_ENDPOINT.ANALYZE);
-    const article = await this.prisma.article.findUnique({
-      where: { id: articleId },
-    });
-    if (!article) {
-      throw new NotFoundError("article doesn't exist");
-    }
-    const rawJson = await this.gemini.generateContent({
-      operation: GeminiOperation.Analyze,
-      userPrompt: buildAnalyzePrompt(article, analyzeArticleDto),
-      responseMimeType: 'application/json',
-      responseJsonSchema: ANALYZE_RESPONSE_JSON_SCHEMA,
-    });
-    const payload = this.parseAnalyzeModelPayload(rawJson);
-    return { articleId, ...payload };
+    return this.runObservedAi(
+      AI_USAGE_ENDPOINT.ANALYZE,
+      traceId,
+      { articleId },
+      async (o) => {
+        const article = await this.prisma.article.findUnique({
+          where: { id: articleId },
+        });
+        if (!article) {
+          throw new NotFoundError("article doesn't exist");
+        }
+        const { text: rawJson, durationMs } = await this.gemini.generateContent(
+          {
+            operation: GeminiOperation.Analyze,
+            userPrompt: buildAnalyzePrompt(article, analyzeArticleDto),
+            responseMimeType: 'application/json',
+            responseJsonSchema: ANALYZE_RESPONSE_JSON_SCHEMA,
+            traceId,
+          },
+        );
+        o.geminiMs = durationMs;
+        const payload = this.parseAnalyzeModelPayload(rawJson);
+        return { articleId, ...payload };
+      },
+    );
   }
 
   private parseAnalyzeModelPayload(raw: string): AnalyzeArticleModelPayload {

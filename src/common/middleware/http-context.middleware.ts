@@ -1,4 +1,5 @@
 import { Injectable, Logger, NestMiddleware } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import type { NextFunction, Request, Response } from 'express';
 import { sanitizeValueForLog } from '../sanitization/sanitize-for-log';
 
@@ -11,9 +12,16 @@ export class HttpContextMiddleware implements NestMiddleware {
     const method = req.method;
     const url = req.originalUrl ?? req.url;
     const hasAuth = Boolean(req.headers.authorization);
+    const rawHeaderId = req.headers['x-request-id'];
+    const traceId =
+      typeof rawHeaderId === 'string' && rawHeaderId.trim().length > 0
+        ? rawHeaderId.trim()
+        : randomUUID();
+    req.traceId = traceId;
+    res.setHeader('X-Request-Id', traceId);
 
     this.logger.log(
-      `→ ${method} ${url} query=${stringifyForLog(
+      `→ ${method} ${url} traceId=${traceId} query=${stringifyForLog(
         req.query,
       )} body=${stringifyForLog(
         req.body,
@@ -23,7 +31,7 @@ export class HttpContextMiddleware implements NestMiddleware {
     res.on('finish', () => {
       const ms = Date.now() - startedAt;
       this.logger.log(
-        `← ${method} ${url} status=${res.statusCode} time=${ms}ms`,
+        `← ${method} ${url} traceId=${traceId} status=${res.statusCode} time=${ms}ms`,
       );
     });
 

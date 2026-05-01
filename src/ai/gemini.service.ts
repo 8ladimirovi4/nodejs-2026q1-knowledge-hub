@@ -1,13 +1,9 @@
 import { HttpException, HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AiUsageService } from './ai-usage.service';
+import { GeminiOperation } from './gemini-operation';
 
-export enum GeminiOperation {
-  Summarize = 'summarize',
-  Translate = 'translate',
-  Analyze = 'analyze',
-  Generate = 'generate',
-}
+export { GeminiOperation } from './gemini-operation';
 
 type GeminiPart = { text?: string };
 
@@ -64,7 +60,8 @@ export class GeminiService {
     userPrompt: string;
     responseMimeType?: 'text/plain' | 'application/json';
     responseJsonSchema?: Record<string, unknown>;
-  }): Promise<string> {
+    traceId?: string;
+  }): Promise<{ text: string; durationMs: number }> {
     if (!this.apiKey.trim()) {
       throw new HttpException(
         'AI provider is not configured',
@@ -94,11 +91,29 @@ export class GeminiService {
       generationConfig,
     };
 
+    const roundTripStarted = Date.now();
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       try {
-        return await this.postGenerateContentOnce(body, options.operation, {
-          enforceCompleteJson: mimeType === 'application/json',
-        });
+        const text = await this.postGenerateContentOnce(
+          body,
+          options.operation,
+          {
+            enforceCompleteJson: mimeType === 'application/json',
+          },
+        );
+        const durationMs = Date.now() - roundTripStarted;
+        this.aiUsage.recordGeminiRoundTrip(options.operation, durationMs);
+        if (options.traceId) {
+          this.logger.log(
+            JSON.stringify({
+              context: 'Gemini',
+              traceId: options.traceId,
+              operation: options.operation,
+              durationMs,
+            }),
+          );
+        }
+        return { text, durationMs };
       } catch (err) {
         if (!(err instanceof HttpException)) {
           throw err;

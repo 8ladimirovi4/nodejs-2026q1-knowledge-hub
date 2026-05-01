@@ -4,11 +4,13 @@ import {
   Get,
   Body,
   Param,
+  Req,
   ParseUUIDPipe,
   HttpCode,
   HttpStatus,
   UseGuards,
 } from '@nestjs/common';
+import type { Request } from 'express';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation } from '@nestjs/swagger';
 import { SkipThrottle } from '@nestjs/throttler';
 import { AiThrottlerGuard } from './ai-throttler.guard';
@@ -40,8 +42,12 @@ export class AiController {
 
   @Post('generate')
   @HttpCode(HttpStatus.OK)
-  generatePrompt(@Body() aiGeneratePromptDto: AiGeneratePromptDto) {
-    return this.aiService.generatePrompt(aiGeneratePromptDto);
+  generatePrompt(
+    @Body() aiGeneratePromptDto: AiGeneratePromptDto,
+    @Req() req: Request,
+  ) {
+    const traceId = req.traceId ?? 'unknown';
+    return this.aiService.generatePrompt(aiGeneratePromptDto, traceId);
   }
 
   @Post('articles/:articleId/summarize')
@@ -49,8 +55,14 @@ export class AiController {
   summarizeArticle(
     @Param('articleId', new ParseUUIDPipe({ version: '4' })) articleId: string,
     @Body() summarizeArticleDto: SummarizeArticleDto,
+    @Req() req: Request,
   ) {
-    return this.aiService.summarizeArticle(articleId, summarizeArticleDto);
+    const traceId = req.traceId ?? 'unknown';
+    return this.aiService.summarizeArticle(
+      articleId,
+      summarizeArticleDto,
+      traceId,
+    );
   }
 
   @Post('articles/:articleId/translate')
@@ -58,8 +70,14 @@ export class AiController {
   translateArticle(
     @Param('articleId', new ParseUUIDPipe({ version: '4' })) articleId: string,
     @Body() translateArticleDto: TranslateArticleDto,
+    @Req() req: Request,
   ) {
-    return this.aiService.translateArticle(articleId, translateArticleDto);
+    const traceId = req.traceId ?? 'unknown';
+    return this.aiService.translateArticle(
+      articleId,
+      translateArticleDto,
+      traceId,
+    );
   }
 
   @Post('articles/:articleId/analyze')
@@ -67,7 +85,9 @@ export class AiController {
   analyzeArticle(
     @Param('articleId', new ParseUUIDPipe({ version: '4' })) articleId: string,
     @Body() analyzeArticleDto: AnalyzeArticleDto,
+    @Req() req: Request,
   ) {
-    return this.aiService.analyzeArticle(articleId, analyzeArticleDto);
+    const traceId = req.traceId ?? 'unknown';
+    return this.aiService.analyzeArticle(articleId, analyzeArticleDto, traceId);
   }
 }
