@@ -1,6 +1,7 @@
 import {
   Controller,
   Post,
+  Get,
   Body,
   Param,
   ParseUUIDPipe,
@@ -8,10 +9,12 @@ import {
   HttpStatus,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation } from '@nestjs/swagger';
 import { SkipThrottle } from '@nestjs/throttler';
 import { AiThrottlerGuard } from './ai-throttler.guard';
 import { AiService } from './ai.service';
+import { AiUsageService, type AiUsageSnapshot } from './ai-usage.service';
+import { AiUsageResponseDto } from './dto/ai-usage.dto';
 import { SummarizeArticleDto } from './dto/summarize-ai.dto';
 import { TranslateArticleDto } from './dto/translate-ai.dto';
 import { AnalyzeArticleDto } from './dto/analyze-ai.dto';
@@ -22,9 +25,21 @@ import { AiGeneratePromptDto } from './dto/generate-ai.dto';
 @UseGuards(AiThrottlerGuard)
 @Controller('ai')
 export class AiController {
-  constructor(private readonly aiService: AiService) {}
+  constructor(
+    private readonly aiService: AiService,
+    private readonly aiUsage: AiUsageService,
+  ) {}
+
+  @Get('usage')
+  @SkipThrottle({ auth: true, ai: true })
+  @ApiOperation({ summary: 'AI usage counters since process start' })
+  @ApiOkResponse({ type: AiUsageResponseDto })
+  getUsage(): AiUsageSnapshot {
+    return this.aiUsage.getSnapshot();
+  }
 
   @Post('generate')
+  @HttpCode(HttpStatus.OK)
   generatePrompt(@Body() aiGeneratePromptDto: AiGeneratePromptDto) {
     return this.aiService.generatePrompt(aiGeneratePromptDto);
   }

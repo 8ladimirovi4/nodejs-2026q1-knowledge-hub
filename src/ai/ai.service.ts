@@ -21,6 +21,7 @@ import { NotFoundError } from 'src/common/errors';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { AiResponseCacheService } from './ai-response-cache.service';
 import { GeminiService, GeminiOperation } from './gemini.service';
+import { AiUsageService, AI_USAGE_ENDPOINT } from './ai-usage.service';
 import {
   buildSummarizePrompt,
   buildTranslatePrompt,
@@ -34,9 +35,11 @@ export class AiService {
     private readonly prisma: PrismaService,
     private readonly cache: AiResponseCacheService,
     private readonly gemini: GeminiService,
+    private readonly aiUsage: AiUsageService,
   ) {}
 
   async generatePrompt(aiGeneratePromptDto: AiGeneratePromptDto) {
+    this.aiUsage.recordAiRequest(AI_USAGE_ENDPOINT.GENERATE);
     const userPrompt = buildGeneratePrompt(aiGeneratePromptDto);
     return this.gemini.generateContent({
       operation: GeminiOperation.Generate,
@@ -48,6 +51,7 @@ export class AiService {
     articleId: string,
     summarizeArticleDto: SummarizeArticleDto,
   ): Promise<SummarizeArticleResponse> {
+    this.aiUsage.recordAiRequest(AI_USAGE_ENDPOINT.SUMMARIZE);
     const article = await this.prisma.article.findUnique({
       where: { id: articleId },
     });
@@ -89,6 +93,7 @@ export class AiService {
     articleId: string,
     translateArticleDto: TranslateArticleDto,
   ): Promise<TranslateArticleResponse> {
+    this.aiUsage.recordAiRequest(AI_USAGE_ENDPOINT.TRANSLATE);
     const article = await this.prisma.article.findUnique({
       where: { id: articleId },
     });
@@ -166,6 +171,7 @@ export class AiService {
     articleId: string,
     analyzeArticleDto: AnalyzeArticleDto,
   ): Promise<AnalyzeArticleResponse> {
+    this.aiUsage.recordAiRequest(AI_USAGE_ENDPOINT.ANALYZE);
     const article = await this.prisma.article.findUnique({
       where: { id: articleId },
     });

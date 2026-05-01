@@ -4,12 +4,14 @@ import { AiController } from './ai.controller';
 import { AiResponseCacheService } from './ai-response-cache.service';
 import { GeminiService } from './gemini.service';
 import { AiThrottlerGuard } from './ai-throttler.guard';
+import { AiUsageService } from './ai-usage.service';
 
 @Module({
   controllers: [AiController],
   providers: [
     AiService,
     AiResponseCacheService,
+    AiUsageService,
     GeminiService,
     AiThrottlerGuard,
   ],

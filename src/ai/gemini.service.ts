@@ -1,5 +1,6 @@
 import { HttpException, HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { AiUsageService } from './ai-usage.service';
 
 export enum GeminiOperation {
   Summarize = 'summarize',
@@ -10,12 +11,22 @@ export enum GeminiOperation {
 
 type GeminiPart = { text?: string };
 
+type GeminiUsageMetadata = {
+  promptTokenCount?: number;
+  candidatesTokenCount?: number;
+  totalTokenCount?: number;
+  prompt_token_count?: number;
+  candidates_token_count?: number;
+  total_token_count?: number;
+};
+
 type GeminiGenerateResponse = {
   candidates?: Array<{
     content?: { parts?: GeminiPart[] };
     finishReason?: string;
   }>;
   promptFeedback?: { blockReason?: string };
+  usageMetadata?: GeminiUsageMetadata;
 };
 
 type GeminiErrorBody = {
@@ -32,7 +43,10 @@ export class GeminiService {
   private readonly apiKey: string;
   private readonly timeoutMs: number;
 
-  constructor(private readonly config: ConfigService) {
+  constructor(
+    private readonly config: ConfigService,
+    private readonly aiUsage: AiUsageService,
+  ) {
     this.apiBaseUrl =
       this.config.get<string>('GEMINI_API_BASE_URL') ??
       'https://generativelanguage.googleapis.com';
@@ -190,7 +204,48 @@ export class GeminiService {
       const retryAfterHeader = response.headers.get('retry-after');
       throw this.mapGeminiFailure(response.status, json, retryAfterHeader);
     }
-    return this.extractTextFromSuccess(json, extractOpts);
+    const text = this.extractTextFromSuccess(json, extractOpts);
+    const usage = this.normalizeUsageMetadata(json);
+    if (usage) {
+      this.aiUsage.recordGeminiTokens(usage);
+    }
+    return text;
+  }
+
+  private normalizeUsageMetadata(json: unknown):
+    | {
+        promptTokenCount: number;
+        candidatesTokenCount: number;
+        totalTokenCount?: number;
+      }
+    | undefined {
+    if (!json || typeof json !== 'object') return undefined;
+    const raw = (json as GeminiGenerateResponse).usageMetadata;
+    if (!raw || typeof raw !== 'object') return undefined;
+    const o = raw as GeminiUsageMetadata;
+    const prompt =
+      pickFiniteNumber(o.promptTokenCount) ??
+      pickFiniteNumber(o.prompt_token_count);
+    const candidates =
+      pickFiniteNumber(o.candidatesTokenCount) ??
+      pickFiniteNumber(o.candidates_token_count);
+    const total =
+      pickFiniteNumber(o.totalTokenCount) ??
+      pickFiniteNumber(o.total_token_count);
+    if (
+      prompt === undefined &&
+      candidates === undefined &&
+      total === undefined
+    ) {
+      return undefined;
+    }
+    const promptTokenCount = prompt ?? 0;
+    const candidatesTokenCount = candidates ?? 0;
+    return {
+      promptTokenCount,
+      candidatesTokenCount,
+      ...(total !== undefined ? { totalTokenCount: total } : {}),
+    };
   }
 
   private mapGeminiFailure(
@@ -324,4 +379,8 @@ export class GeminiService {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function pickFiniteNumber(v: unknown): number | undefined {
+  return typeof v === 'number' && Number.isFinite(v) ? v : undefined;
 }
