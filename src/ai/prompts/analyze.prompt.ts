@@ -16,14 +16,16 @@ export function buildAnalyzePrompt(
   article: ArticleForPrompt,
   dto: AnalyzeArticleDto,
 ): string {
-  const task = dto.task ?? AnalyzeArticleTask.EXPLAIN;
+  const task = dto.task ?? AnalyzeArticleTask.REVIEW;
   const focus = TASK_FOCUS[task];
 
   return [
     'You analyze articles in a knowledge hub.',
     `Task: ${task}.`,
     focus,
-    'Ground your answer only in the provided text. Output plain text (short sections with clear labels are fine).',
+    'Ground everything only in the provided text. Do not invent facts or external citations.',
+    'Respond ONLY with JSON matching the schema supplied by the API (no markdown fences, no prose outside JSON).',
+    'Fill suggestions[] with concise standalone strings (actions or fixes). Put substantive narrative only in analysis.',
     '',
     `Title: ${article.title}`,
     '',

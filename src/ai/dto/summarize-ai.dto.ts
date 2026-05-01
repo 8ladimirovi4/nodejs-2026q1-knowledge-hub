@@ -6,6 +6,13 @@ export enum SummarizeArticleMaxLength {
   DETAILED = 'detailed',
 }
 
+export type SummarizeArticleResponse = {
+  articleId: string;
+  summary: string;
+  originalLength: number;
+  summaryLength: number;
+};
+
 export class SummarizeArticleDto {
   @IsOptional()
   @IsEnum(SummarizeArticleMaxLength)

@@ -49,7 +49,7 @@ export class AiResponseCacheService {
     targetLanguage: string,
     sourceLanguage: string | undefined,
   ): string {
-    return this.stableKey('translate', articleId, articleUpdatedAt, {
+    return this.stableKey('translateStructured', articleId, articleUpdatedAt, {
       targetLanguage,
       ...(sourceLanguage !== undefined ? { sourceLanguage } : {}),
     });

@@ -48,12 +48,26 @@ export class GeminiService {
   async generateContent(options: {
     operation: GeminiOperation;
     userPrompt: string;
+    responseMimeType?: 'text/plain' | 'application/json';
+    responseJsonSchema?: Record<string, unknown>;
   }): Promise<string> {
     if (!this.apiKey.trim()) {
       throw new HttpException(
         'AI provider is not configured',
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
+    }
+
+    const mimeType = options.responseMimeType ?? 'text/plain';
+    const generationConfig: Record<string, unknown> = {
+      temperature: 0.4,
+      responseMimeType: mimeType,
+      thinkingConfig: {
+        thinkingBudget: 0,
+      },
+    };
+    if (mimeType === 'application/json' && options.responseJsonSchema) {
+      generationConfig.responseJsonSchema = options.responseJsonSchema;
     }
 
     const body = {
@@ -63,19 +77,14 @@ export class GeminiService {
           parts: [{ text: options.userPrompt }],
         },
       ],
-      generationConfig: {
-        temperature: 0.4,
-        maxOutputTokens: 8192,
-        responseMimeType: 'text/plain',
-        thinkingConfig: {
-          thinkingBudget: 0,
-        },
-      },
+      generationConfig,
     };
 
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       try {
-        return await this.postGenerateContentOnce(body, options.operation);
+        return await this.postGenerateContentOnce(body, options.operation, {
+          enforceCompleteJson: mimeType === 'application/json',
+        });
       } catch (err) {
         if (!(err instanceof HttpException)) {
           throw err;
@@ -142,6 +151,7 @@ export class GeminiService {
   private async postGenerateContentOnce(
     body: Record<string, unknown>,
     operation: GeminiOperation,
+    extractOpts: { enforceCompleteJson: boolean },
   ): Promise<string> {
     const url = this.buildUrl();
     let response: Response;
@@ -180,8 +190,7 @@ export class GeminiService {
       const retryAfterHeader = response.headers.get('retry-after');
       throw this.mapGeminiFailure(response.status, json, retryAfterHeader);
     }
-
-    return this.extractTextFromSuccess(json);
+    return this.extractTextFromSuccess(json, extractOpts);
   }
 
   private mapGeminiFailure(
@@ -260,7 +269,10 @@ export class GeminiService {
     return e?.message ?? JSON.stringify(json).slice(0, 500);
   }
 
-  private extractTextFromSuccess(json: unknown): string {
+  private extractTextFromSuccess(
+    json: unknown,
+    extractOpts?: { enforceCompleteJson?: boolean },
+  ): string {
     const data = json as GeminiGenerateResponse;
     if (data.promptFeedback?.blockReason) {
       throw new HttpException(
@@ -277,9 +289,10 @@ export class GeminiService {
       );
     }
 
-    const parts = candidates[0]?.content?.parts;
+    const first = candidates[0];
+    const parts = first?.content?.parts;
     if (!parts?.length) {
-      const reason = candidates[0]?.finishReason;
+      const reason = first?.finishReason;
       throw new HttpException(
         reason
           ? `Model response finished with ${reason}`
@@ -288,10 +301,19 @@ export class GeminiService {
       );
     }
 
+    const finishReason = first?.finishReason;
     const text = parts.map((p) => p.text ?? '').join('');
     if (!text.trim()) {
       throw new HttpException(
         'Model returned only empty text',
+        HttpStatus.BAD_GATEWAY,
+      );
+    }
+
+    if (extractOpts?.enforceCompleteJson && finishReason === 'MAX_TOKENS') {
+      this.logger.warn('Gemini structured JSON stopped with MAX_TOKENS');
+      throw new HttpException(
+        'Structured model response was truncated (output token limit)',
         HttpStatus.BAD_GATEWAY,
       );
     }
