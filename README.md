@@ -11,6 +11,10 @@
 git clone {repository URL}
 ```
 
+```
+cp .env.example .env
+```
+
 ## Installing NPM modules
 
 ```
@@ -69,6 +73,62 @@ After seeding the database (`npm run db:seed`), user with **`login`** `admin` an
 Public routes (`/auth/signup`, `/auth/login`, `/auth/refresh`, `/auth/logout`, `/`, `/doc`) do not require a token.
 
 **Logout / refresh token blacklist:** `POST /auth/logout` accepts `{ "refreshToken": "<jwt>" }` and revokes that refresh token until it would have expired. Revocation is stored **in memory** in the API process: it does **not** survive restarts, is **not** shared between multiple app instances, and is intended for **local/demo** use only. For production, use Redis or a database-backed store.
+
+## Google Gemini (AI integration)
+
+This API calls **Google Gemini** over HTTP from the server. The browser never sees your Gemini API key; only your backend sends `x-goog-api-key` to Google.
+
+### How to obtain a Gemini API key (step-by-step)
+
+1. Sign in with a Google account at **[Google AI Studio](https://aistudio.google.com/)** (or open **Get API key** from the Gemini API docs).
+2. Open **Get API key** / **Create API key** and choose **Create API key in new project** (or attach the key to an existing Google Cloud project you are allowed to use).
+3. Copy the key string once it is shown. Store it only in **`.env`** (or your secret manager); never commit it to Git.
+4. If the console shows quotas or billing notices, review the **free tier** limits for your account and region (see **Known limitations** below).
+
+### Which Gemini model is used
+
+The model name is read from **`GEMINI_MODEL`** in `.env`. If that variable is missing or empty, the application falls back to **`gemini-2.5-flash`**.
+
+The sample in **`.env.example`** sets **`GEMINI_MODEL=gemini-2.0-flash`**. You may change it to any model your API key can access (for example **`gemini-2.5-flash`** or **`gemini-2.5-flash-lite`**) as long as it supports the **`generateContent`** endpoint used by this project.
+
+### Setup Gemini
+
+1. Set **`GEMINI_API_KEY`** in **`.env`** to the key you copied from AI Studio (replace the placeholder `your-gemini-api-key`). Do not paste the key into the README, Swagger, or source files.
+
+**AI-related variables** (all optional except **`GEMINI_API_KEY`** for real AI responses):
+
+
+| Variable                     | Purpose                                                                  |
+| ------------------------------ | -------------------------------------------------------------------------- |
+| **`GEMINI_API_KEY`**         | Google Gemini API key (required for live model calls).                   |
+| **`GEMINI_API_BASE_URL`**    | Base URL (default`https://generativelanguage.googleapis.com`).           |
+| **`GEMINI_MODEL`**           | Model id (see**Which Gemini model is used**).                            |
+| **`GEMINI_HTTP_TIMEOUT_MS`** | Request timeout in ms (default**120000**).                               |
+| **`AI_RATE_LIMIT_RPM`**      | Max AI-route requests per minute per client (default**20**).             |
+| **`AI_CACHE_TTL_SEC`**       | TTL for summarize/translate in-memory cache in seconds (default**300**). |
+
+### How to run the app and test AI endpoints
+
+1. Start the API (**`npm run start:dev`** or **`npm start`** or **`npm start:prod`(build needed) as documented above) with a valid **`.env`** including **`GEMINI_API_KEY`**.
+2. Open **`http://localhost:<PORT>/doc/`** (default port **4000**).
+3. Obtain a JWT: **`POST /auth/login`** (for example seeded user `admin` / `admin123` after **`npm run db:seed`**).
+4. In Swagger, **Authorize** with the **access token** (paste the JWT only, no `Bearer` prefix in the UI field).
+5. **Article-backed AI** requires an existing article id from the database (e.g. from **`GET /article`**):
+   - **`POST /ai/articles/{articleId}/summarize`**
+   - **`POST /ai/articles/{articleId}/translate`**
+   - **`POST /ai/articles/{articleId}/analyze`**
+6. Optional: **`POST /ai/generate`** (free-form prompt).
+7. **`GET /ai/usage`** returns in-memory counters since process start (totals, per-endpoint counts, optional token aggregates when Gemini returns usage metadata).
+
+Without **`GEMINI_API_KEY`**, AI routes that call Gemini respond with an internal configuration error instead of a model result.
+
+### Known limitations
+
+- **Free tier and quotas:** Google applies per-minute/per-day and token limits that vary by model and account. Heavy use or burst traffic can return **429**; the server retries with backoff, then may respond with **503**.
+- **Latency:** Each AI call depends on Google’s response time and prompt size; expect noticeable delays compared to ordinary CRUD endpoints.
+- **Regional availability:** Access to Gemini and certain models can depend on **country/region** and Google/Cloud policy. If requests fail with auth or “unsupported” errors, check [Gemini API documentation](https://ai.google.dev/gemini-api/docs) and AI Studio for your region.
+- **Model and API changes:** Model names and free-tier rules can change; update **`GEMINI_MODEL`** and monitor Google’s announcements if a model is deprecated.
+- **Cache and usage data:** Summarize/translate responses are cached in memory (**`AI_CACHE_TTL_SEC`**). **`GET /ai/usage`** counters reset when the Node process restarts.
 
 ## Docker
 
