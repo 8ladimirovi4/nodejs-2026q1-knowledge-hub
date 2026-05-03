@@ -42,3 +42,4 @@ development_docs
 
 # Prisma / codegen (если когда-то снова зададут custom output)
 /generated
+.cursor
