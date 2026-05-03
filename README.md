@@ -106,6 +106,8 @@ The sample in **`.env.example`** sets **`GEMINI_MODEL=gemini-2.0-flash`**. You m
 | **`GEMINI_HTTP_TIMEOUT_MS`** | Request timeout in ms (default**120000**).                               |
 | **`AI_RATE_LIMIT_RPM`**      | Max AI-route requests per minute per client (default**20**).             |
 | **`AI_CACHE_TTL_SEC`**       | TTL for summarize/translate in-memory cache in seconds (default**300**). |
+| **`AI_CONVERSATION_MAX_PAIRS`** | Max user–model **pairs** kept per `sessionId` for **`POST /ai/generate`** (default**10**). Older pairs are dropped (FIFO trim). |
+| **`AI_CONVERSATION_IDLE_TTL_SEC`** | If no request hits a thread for this many **seconds**, its stored turns are discarded on the **next** access (default**900**). In-process only; no background sweeper. |
 
 ### How to run the app and test AI endpoints
 
@@ -117,7 +119,7 @@ The sample in **`.env.example`** sets **`GEMINI_MODEL=gemini-2.0-flash`**. You m
    - **`POST /ai/articles/{articleId}/summarize`**
    - **`POST /ai/articles/{articleId}/translate`**
    - **`POST /ai/articles/{articleId}/analyze`**
-6. Optional: **`POST /ai/generate`** (free-form prompt).
+6. Optional: **`POST /ai/generate`** (free-form prompt) supports **short-term conversation memory**. Request body includes **`prompt`** and optional **`sessionId`** (UUID v4). If you omit **`sessionId`**, the server mints one and returns it in **`{ "text": "...", "sessionId": "..." }`**; reuse that **`sessionId`** on follow-up requests so Gemini receives prior turns in the thread. Separate **`sessionId`** values isolate context (for example separate Swagger tabs or topics). Memory is keyed by **`userId` from the JWT** plus **`sessionId`**, stored **in-process** until restart; depth is capped by **`AI_CONVERSATION_MAX_PAIRS`** (pairs), and idle threads are cleared per **`AI_CONVERSATION_IDLE_TTL_SEC`** on the next access (see table above).
 7. **`GET /ai/usage`** returns in-memory counters since process start (totals, per-endpoint counts, optional token aggregates when Gemini returns usage metadata).
 
 Without **`GEMINI_API_KEY`**, AI routes that call Gemini respond with an internal configuration error instead of a model result.
@@ -128,7 +130,7 @@ Without **`GEMINI_API_KEY`**, AI routes that call Gemini respond with an interna
 - **Latency:** Each AI call depends on Google’s response time and prompt size; expect noticeable delays compared to ordinary CRUD endpoints.
 - **Regional availability:** Access to Gemini and certain models can depend on **country/region** and Google/Cloud policy. If requests fail with auth or “unsupported” errors, check [Gemini API documentation](https://ai.google.dev/gemini-api/docs) and AI Studio for your region.
 - **Model and API changes:** Model names and free-tier rules can change; update **`GEMINI_MODEL`** and monitor Google’s announcements if a model is deprecated.
-- **Cache and usage data:** Summarize/translate responses are cached in memory (**`AI_CACHE_TTL_SEC`**). **`GET /ai/usage`** counters reset when the Node process restarts.
+- **Cache and usage data:** Summarize/translate responses are cached in memory (**`AI_CACHE_TTL_SEC`**). **`POST /ai/generate`** dialogue history is stored in memory per **`sessionId`** (bounded by **`AI_CONVERSATION_MAX_PAIRS`** and **`AI_CONVERSATION_IDLE_TTL_SEC`**) and is also lost when the Node process restarts. **`GET /ai/usage`** counters reset when the Node process restarts.
 
 ## Docker
 
