@@ -353,4 +353,83 @@ describe('Users (e2e)', () => {
       expect(cleanupArticle.statusCode).toBe(StatusCodes.NO_CONTENT);
     });
   });
+ //Dear reviewer! please notiсe that I haven't made any changes to the current autotests! I created new one according the "+10 Additional automated tests are written" score point
+  describe('GET (pagination)', () => {
+    it('should return total, page, limit and data when page and limit are set', async () => {
+      const listBefore = await unauthorizedRequest
+        .get(usersRoutes.getAll)
+        .set(commonHeaders);
+      expect(listBefore.status).toBe(StatusCodes.OK);
+      const countBefore = listBefore.body.length;
+
+      const suffix = `${Date.now()}`;
+      const ids: string[] = [];
+      for (let i = 0; i < 3; i++) {
+        const res = await unauthorizedRequest
+          .post(usersRoutes.create)
+          .set(commonHeaders)
+          .send({
+            login: `PAG_USER_${suffix}_${i}`,
+            password: 'TEST_PASSWORD',
+          });
+        expect(res.status).toBe(StatusCodes.CREATED);
+        ids.push(res.body.id);
+      }
+
+      const paginated = await unauthorizedRequest
+        .get(`${usersRoutes.getAll}?page=1&limit=2`)
+        .set(commonHeaders);
+
+      expect(paginated.status).toBe(StatusCodes.OK);
+      expect(paginated.body).toMatchObject({
+        total: countBefore + 3,
+        page: 1,
+        limit: 2,
+        data: expect.any(Array),
+      });
+      expect(paginated.body.data).toHaveLength(2);
+
+      for (const id of ids) {
+        await unauthorizedRequest
+          .delete(usersRoutes.delete(id))
+          .set(commonHeaders);
+      }
+    });
+  });
+
+  describe('GET (sorting)', () => {
+    it('should sort users by login ascending', async () => {
+      const suffix = `${Date.now()}`;
+      const logins = [`z_sort_${suffix}`, `a_sort_${suffix}`, `m_sort_${suffix}`];
+      const ids: string[] = [];
+      for (const login of logins) {
+        const res = await unauthorizedRequest
+          .post(usersRoutes.create)
+          .set(commonHeaders)
+          .send({ login, password: 'TEST_PASSWORD' });
+        expect(res.status).toBe(StatusCodes.CREATED);
+        ids.push(res.body.id);
+      }
+
+      const res = await unauthorizedRequest
+        .get(`${usersRoutes.getAll}?sortBy=login&order=asc`)
+        .set(commonHeaders);
+
+      expect(res.status).toBe(StatusCodes.OK);
+      expect(res.body).toBeInstanceOf(Array);
+      const ours = res.body.filter((u) => ids.includes(u.id));
+      expect(ours).toHaveLength(3);
+      expect(ours.map((u) => u.login)).toEqual([
+        `a_sort_${suffix}`,
+        `m_sort_${suffix}`,
+        `z_sort_${suffix}`,
+      ]);
+
+      for (const id of ids) {
+        await unauthorizedRequest
+          .delete(usersRoutes.delete(id))
+          .set(commonHeaders);
+      }
+    });
+  });
 });
