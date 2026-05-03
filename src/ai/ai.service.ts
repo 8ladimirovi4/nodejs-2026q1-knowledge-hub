@@ -1,5 +1,8 @@
 import { HttpException, HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { AiGeneratePromptDto } from './dto/generate-ai.dto';
+import { AiGeneratePromptResponseDto } from './dto/generate-ai-response.dto';
+import type { JwtAccessPayload } from 'src/auth/types/jwt-access-payload.interface';
+import { AiConversationMemoryService } from './ai-conversation-memory.service';
 import {
   SummarizeArticleDto,
   SummarizeArticleResponse,
@@ -48,6 +51,7 @@ export class AiService {
     private readonly cache: AiResponseCacheService,
     private readonly gemini: GeminiService,
     private readonly aiUsage: AiUsageService,
+    private readonly conversationMemory: AiConversationMemoryService,
   ) {}
 
   private async runObservedAi<T>(
@@ -93,22 +97,37 @@ export class AiService {
 
   async generatePrompt(
     aiGeneratePromptDto: AiGeneratePromptDto,
+    actor: JwtAccessPayload,
     traceId: string,
-  ): Promise<string> {
+  ): Promise<AiGeneratePromptResponseDto> {
     this.aiUsage.recordAiRequest(AI_USAGE_ENDPOINT.GENERATE);
     return this.runObservedAi(
       AI_USAGE_ENDPOINT.GENERATE,
       traceId,
       {},
       async (o) => {
+        const sessionId =
+          aiGeneratePromptDto.sessionId ??
+          this.conversationMemory.mintSessionId();
+        const priorContents = this.conversationMemory.getPriorGeminiContents(
+          actor.userId,
+          sessionId,
+        );
         const userPrompt = buildGeneratePrompt(aiGeneratePromptDto);
         const { text, durationMs } = await this.gemini.generateContent({
           operation: GeminiOperation.Generate,
           userPrompt,
+          priorContents,
           traceId,
         });
         o.geminiMs = durationMs;
-        return text;
+        this.conversationMemory.appendSuccessfulExchange(
+          actor.userId,
+          sessionId,
+          userPrompt,
+          text,
+        );
+        return { text, sessionId };
       },
     );
   }

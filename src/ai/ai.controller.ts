@@ -21,6 +21,9 @@ import { SummarizeArticleDto } from './dto/summarize-ai.dto';
 import { TranslateArticleDto } from './dto/translate-ai.dto';
 import { AnalyzeArticleDto } from './dto/analyze-ai.dto';
 import { AiGeneratePromptDto } from './dto/generate-ai.dto';
+import { AiGeneratePromptResponseDto } from './dto/generate-ai-response.dto';
+import { CurrentUser } from 'src/common/decorators/current-user.decorator';
+import type { JwtAccessPayload } from 'src/auth/types/jwt-access-payload.interface';
 
 @ApiBearerAuth('access-token')
 @SkipThrottle({ auth: true })
@@ -42,12 +45,18 @@ export class AiController {
 
   @Post('generate')
   @HttpCode(HttpStatus.OK)
+  @ApiOkResponse({ type: AiGeneratePromptResponseDto })
+  @ApiOperation({
+    summary:
+      'Free-form generation with short-term conversation memory per sessionId',
+  })
   generatePrompt(
     @Body() aiGeneratePromptDto: AiGeneratePromptDto,
+    @CurrentUser() actor: JwtAccessPayload,
     @Req() req: Request,
   ) {
     const traceId = req.traceId ?? 'unknown';
-    return this.aiService.generatePrompt(aiGeneratePromptDto, traceId);
+    return this.aiService.generatePrompt(aiGeneratePromptDto, actor, traceId);
   }
 
   @Post('articles/:articleId/summarize')

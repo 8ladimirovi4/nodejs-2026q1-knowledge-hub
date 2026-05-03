@@ -5,6 +5,7 @@ import { AiResponseCacheService } from './ai-response-cache.service';
 import { GeminiService } from './gemini.service';
 import { AiThrottlerGuard } from './ai-throttler.guard';
 import { AiUsageService } from './ai-usage.service';
+import { AiConversationMemoryService } from './ai-conversation-memory.service';
 
 @Module({
   controllers: [AiController],
@@ -12,6 +13,7 @@ import { AiUsageService } from './ai-usage.service';
     AiService,
     AiResponseCacheService,
     AiUsageService,
+    AiConversationMemoryService,
     GeminiService,
     AiThrottlerGuard,
   ],

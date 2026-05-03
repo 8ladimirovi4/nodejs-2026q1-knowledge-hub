@@ -58,6 +58,10 @@ export class GeminiService {
   async generateContent(options: {
     operation: GeminiOperation;
     userPrompt: string;
+    priorContents?: Array<{
+      role: 'user' | 'model';
+      parts: { text: string }[];
+    }>;
     responseMimeType?: 'text/plain' | 'application/json';
     responseJsonSchema?: Record<string, unknown>;
     traceId?: string;
@@ -81,13 +85,17 @@ export class GeminiService {
       generationConfig.responseJsonSchema = options.responseJsonSchema;
     }
 
+    const prior = options.priorContents ?? [];
+    const contents: Array<{ role?: string; parts: GeminiPart[] }> = [
+      ...prior,
+      {
+        role: 'user',
+        parts: [{ text: options.userPrompt }],
+      },
+    ];
+
     const body = {
-      contents: [
-        {
-          role: 'user',
-          parts: [{ text: options.userPrompt }],
-        },
-      ],
+      contents,
       generationConfig,
     };
 
