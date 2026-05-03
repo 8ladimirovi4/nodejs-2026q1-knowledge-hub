@@ -11,12 +11,20 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import type { Request } from 'express';
-import { ApiBearerAuth, ApiOkResponse, ApiOperation } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiExtraModels,
+  ApiOkResponse,
+  ApiOperation,
+} from '@nestjs/swagger';
 import { SkipThrottle } from '@nestjs/throttler';
 import { AiThrottlerGuard } from './ai-throttler.guard';
 import { AiService } from './ai.service';
 import { AiUsageService, type AiUsageSnapshot } from './ai-usage.service';
-import { AiUsageResponseDto } from './dto/ai-usage.dto';
+import {
+  AiUsageResponseDto,
+  LatencyStatDto,
+} from './dto/ai-usage.dto';
 import { SummarizeArticleDto } from './dto/summarize-ai.dto';
 import { TranslateArticleDto } from './dto/translate-ai.dto';
 import { AnalyzeArticleDto } from './dto/analyze-ai.dto';
@@ -26,6 +34,7 @@ import { CurrentUser } from 'src/common/decorators/current-user.decorator';
 import type { JwtAccessPayload } from 'src/auth/types/jwt-access-payload.interface';
 
 @ApiBearerAuth('access-token')
+@ApiExtraModels(LatencyStatDto)
 @SkipThrottle({ auth: true })
 @UseGuards(AiThrottlerGuard)
 @Controller('ai')

@@ -1,4 +1,8 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import {
+  ApiProperty,
+  ApiPropertyOptional,
+  getSchemaPath,
+} from '@nestjs/swagger';
 
 export class AiUsageTokensDto {
   @ApiProperty({ example: 1200 })
@@ -26,7 +30,7 @@ export class AiUsageLatencyDto {
   @ApiProperty({
     description: 'Wall-clock latency per AI HTTP endpoint (handler).',
     type: 'object',
-    additionalProperties: { $ref: '#/components/schemas/LatencyStatDto' },
+    additionalProperties: { $ref: getSchemaPath(LatencyStatDto) },
   })
   byEndpoint: Record<string, LatencyStatDto>;
 
@@ -34,7 +38,7 @@ export class AiUsageLatencyDto {
     description:
       'Gemini generateContent round-trip (includes retries/backoff).',
     type: 'object',
-    additionalProperties: { $ref: '#/components/schemas/LatencyStatDto' },
+    additionalProperties: { $ref: getSchemaPath(LatencyStatDto) },
   })
   geminiByOperation: Record<string, LatencyStatDto>;
 }
