@@ -48,6 +48,28 @@ These are not separate npm scripts in this repo; use **`npx prisma …`** from t
 
 Typical local workflow: start Postgres (`docker compose up -d db` or full stack) → set **`DATABASE_URL`** → `npx prisma migrate dev` → optional `npm run db:seed` → `npm run start:dev`.
 
+## Vector DB (Qdrant)
+
+For **local development**, run Qdrant in Docker with a named container and a persistent volume:
+
+```
+docker run -d \
+  --name knowledge_hub_quadrant \
+  -p 6333:6333 \
+  -v qdrant_storage:/qdrant/storage \
+  qdrant/qdrant:latest
+```
+
+The API listens on **`http://localhost:6333`** (web UI: **`http://localhost:6333/dashboard`**).
+
+To verify Qdrant is running, request the collections endpoint; you should see JSON (often `{"collections":[]}` until RAG indexing creates a collection):
+
+```
+curl -s http://localhost:6333/collections | head
+```
+
+When the Nest app runs **on your machine** (not inside Compose), point **`RAG_VECTOR_DB_URL`** in **`.env`** to **`http://localhost:6333`** (Compose services use **`http://vectordb:6333`** instead). See **`.env.example`**.
+
 ## Running application
 
 ```
@@ -98,16 +120,16 @@ The sample in **`.env.example`** sets **`GEMINI_MODEL=gemini-2.0-flash`**. You m
 **AI-related variables** (all optional except **`GEMINI_API_KEY`** for real AI responses):
 
 
-| Variable                     | Purpose                                                                  |
-| ------------------------------ | -------------------------------------------------------------------------- |
-| **`GEMINI_API_KEY`**         | Google Gemini API key (required for live model calls).                   |
-| **`GEMINI_API_BASE_URL`**    | Base URL (default`https://generativelanguage.googleapis.com`).           |
-| **`GEMINI_MODEL`**           | Model id (see**Which Gemini model is used**).                            |
-| **`GEMINI_HTTP_TIMEOUT_MS`** | Request timeout in ms (default**120000**).                               |
-| **`AI_RATE_LIMIT_RPM`**      | Max AI-route requests per minute per client (default**20**).             |
-| **`AI_CACHE_TTL_SEC`**       | TTL for summarize/translate in-memory cache in seconds (default**300**). |
-| **`AI_CONVERSATION_MAX_PAIRS`** | Max user–model **pairs** kept per `sessionId` for **`POST /ai/generate`** (default**10**). Older pairs are dropped (FIFO trim). |
-| **`AI_CONVERSATION_IDLE_TTL_SEC`** | If no request hits a thread for this many **seconds**, its stored turns are discarded on the **next** access (default**900**). In-process only; no background sweeper. |
+| Variable                           | Purpose                                                                                                                                                               |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`GEMINI_API_KEY`**               | Google Gemini API key (required for live model calls).                                                                                                                |
+| **`GEMINI_API_BASE_URL`**          | Base URL (default`https://generativelanguage.googleapis.com`).                                                                                                        |
+| **`GEMINI_MODEL`**                 | Model id (see**Which Gemini model is used**).                                                                                                                         |
+| **`GEMINI_HTTP_TIMEOUT_MS`**       | Request timeout in ms (default**120000**).                                                                                                                            |
+| **`AI_RATE_LIMIT_RPM`**            | Max AI-route requests per minute per client (default**20**).                                                                                                          |
+| **`AI_CACHE_TTL_SEC`**             | TTL for summarize/translate in-memory cache in seconds (default**300**).                                                                                              |
+| **`AI_CONVERSATION_MAX_PAIRS`**    | Max user–model**pairs** kept per `sessionId` for **`POST /ai/generate`** (default**10**). Older pairs are dropped (FIFO trim).                                       |
+| **`AI_CONVERSATION_IDLE_TTL_SEC`** | If no request hits a thread for this many**seconds**, its stored turns are discarded on the **next** access (default**900**). In-process only; no background sweeper. |
 
 ### How to run the app and test AI endpoints
 
@@ -167,20 +189,21 @@ docker compose down
 
 ### Verifying health checks (`docker compose ps`)
 
-Both **`app`** and **`db`** define `healthcheck` in `docker-compose.yml`. After the stack is running, check that Docker reports them as healthy:
+**`app`**, **`db`**, and **`vectordb`** (Qdrant) define `healthcheck` in `docker-compose.yml`. After the stack is running, check that Docker reports them as healthy:
 
 ```bash
 docker compose up --build -d
 docker compose ps
 ```
 
-In the **STATUS** (or **State**) column you should see **`healthy`** for **`app`** and **`db`** once probes have succeeded (allow a short time after startup; **`app`** uses `start_period: 40s`). If you see **`starting`**, wait and run `docker compose ps` again.
+In the **STATUS** (or **State**) column you should see **`healthy`** for **`app`**, **`db`**, and **`vectordb`** once probes have succeeded (allow a short time after startup; **`app`** uses `start_period: 40s`). If you see **`starting`**, wait and run `docker compose ps` again.
 
-This matches the course criterion that health checks are configured for both services. Optional detail:
+This matches the course criterion that health checks are configured for these services. Optional detail:
 
 ```bash
 docker inspect --format '{{.State.Health.Status}}' "$(docker compose ps -q app)"
 docker inspect --format '{{.State.Health.Status}}' "$(docker compose ps -q db)"
+docker inspect --format '{{.State.Health.Status}}' "$(docker compose ps -q vectordb)"
 ```
 
 Expected output for each: **`healthy`**.
