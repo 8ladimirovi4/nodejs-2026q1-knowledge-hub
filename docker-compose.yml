@@ -5,12 +5,13 @@ services:
       dockerfile: Dockerfile
     env_file: .env
     environment:
-      # Overrides .env for the container: reach Postgres by Compose service name `db`.
-      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}?schema=public
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:${POSTGRES_PORT:-5432}/${POSTGRES_DB}?schema=public
     ports:
       - "${PORT:-4000}:${PORT:-4000}"
     depends_on:
       db:
+        condition: service_healthy
+      vectordb:
         condition: service_healthy
     networks:
       - knowledge-hub-net
@@ -36,7 +37,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
@@ -47,6 +48,23 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+
+  vectordb:
+    container_name: ${RAG_VECTOR_COLLECTION:-knowledge_hub_articles}
+    image: qdrant/qdrant:latest
+    ports:
+      - "${QUADRANT_PORT:-6333}:6333"
+    volumes:
+      - knowledge_hub_articles_data:/qdrant/storage
+    networks:
+      - knowledge-hub-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c \"exec 3<>/dev/tcp/127.0.0.1/6333\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
 
   adminer:
     image: adminer:latest
@@ -66,3 +84,4 @@ networks:
 
 volumes:
   postgres_data:
+  knowledge_hub_articles_data:
