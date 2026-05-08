@@ -23,6 +23,7 @@ async function bootstrap() {
     .setTitle('Knowledge Hub REST API')
     .setDescription('OpenAPI documentation')
     .setVersion('1.0')
+    .addTag('Auth')
     .addBearerAuth(
       {
         type: 'http',

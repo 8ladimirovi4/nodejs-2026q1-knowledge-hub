@@ -21,10 +21,7 @@ import { SkipThrottle } from '@nestjs/throttler';
 import { AiThrottlerGuard } from './ai-throttler.guard';
 import { AiService } from './ai.service';
 import { AiUsageService, type AiUsageSnapshot } from './ai-usage.service';
-import {
-  AiUsageResponseDto,
-  LatencyStatDto,
-} from './dto/ai-usage.dto';
+import { AiUsageResponseDto, LatencyStatDto } from './dto/ai-usage.dto';
 import { SummarizeArticleDto } from './dto/summarize-ai.dto';
 import { TranslateArticleDto } from './dto/translate-ai.dto';
 import { AnalyzeArticleDto } from './dto/analyze-ai.dto';

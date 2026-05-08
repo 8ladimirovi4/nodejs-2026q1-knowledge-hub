@@ -17,5 +17,6 @@ import { AiConversationMemoryService } from './ai-conversation-memory.service';
     GeminiService,
     AiThrottlerGuard,
   ],
+  exports: [GeminiService, AiService],
 })
 export class AiModule {}
