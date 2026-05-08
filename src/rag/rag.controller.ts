@@ -14,7 +14,6 @@ import { RagSearchDto } from './dto/rag-search.dto';
 import { RagRetrievalService } from './rag-retrieval.service';
 import { RagChatDto } from './dto/rag-chat.dto';
 import { RagChatService } from './rag-chat.service';
-import { RagConversationService } from './rag-conversation.service';
 import { ApiBearerAuth } from '@nestjs/swagger';
 
 @ApiBearerAuth('access-token')
@@ -24,12 +23,11 @@ export class RagController {
     private readonly reIndexService: RagIndexingService,
     private readonly retrievalService: RagRetrievalService,
     private readonly chatService: RagChatService,
-    private readonly conversation: RagConversationService,
   ) {}
 
   @Get('chat/:conversationId/history')
-  history(@Param('id') id: string) {
-    return this.conversation.getHistory(id);
+  history(@Param('conversationId') conversationId: string) {
+    return this.chatService.getHistory(conversationId);
   }
 
   @Post('index')
@@ -52,7 +50,7 @@ export class RagController {
 
   @Delete('index/articles/:articleId')
   @HttpCode(HttpStatus.NO_CONTENT)
-  remove(@Param('id') id: string) {
-    return this.reIndexService.removeArticleFromIndex(id);
+  remove(@Param('articleId') articleId: string) {
+    return this.reIndexService.removeArticleFromIndex(articleId);
   }
 }
