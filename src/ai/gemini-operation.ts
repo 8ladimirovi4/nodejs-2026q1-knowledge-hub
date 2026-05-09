@@ -3,4 +3,5 @@ export enum GeminiOperation {
   Translate = 'translate',
   Analyze = 'analyze',
   Generate = 'generate',
+  Embed = 'embed',
 }

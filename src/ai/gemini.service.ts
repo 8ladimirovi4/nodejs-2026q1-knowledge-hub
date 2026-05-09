@@ -36,6 +36,7 @@ export class GeminiService {
   private readonly logger = new Logger(GeminiService.name);
   private readonly apiBaseUrl: string;
   private readonly model: string;
+  private readonly embeddingModel: string;
   private readonly apiKey: string;
   private readonly timeoutMs: number;
 
@@ -47,6 +48,9 @@ export class GeminiService {
       this.config.get<string>('GEMINI_API_BASE_URL') ??
       'https://generativelanguage.googleapis.com';
     this.model = this.config.get<string>('GEMINI_MODEL') ?? 'gemini-2.5-flash';
+    this.embeddingModel = (
+      this.config.get<string>('GEMINI_EMBEDDING_MODEL') ?? 'text-embedding-004'
+    ).trim();
     this.apiKey = this.config.get<string>('GEMINI_API_KEY') ?? '';
     const rawTimeout = Number(
       this.config.get<string>('GEMINI_HTTP_TIMEOUT_MS'),
@@ -165,6 +169,206 @@ export class GeminiService {
     throw new HttpException(
       'Language model request failed after retries',
       HttpStatus.SERVICE_UNAVAILABLE,
+    );
+  }
+
+  async embedTexts(texts: string[]): Promise<number[][]> {
+    if (texts.length === 0) {
+      return [];
+    }
+    if (!this.apiKey.trim()) {
+      throw new HttpException(
+        'AI provider is not configured',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+
+    const roundTripStarted = Date.now();
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        const vectors = await this.embedTextsOnce(texts);
+        const durationMs = Date.now() - roundTripStarted;
+        this.aiUsage.recordGeminiRoundTrip(GeminiOperation.Embed, durationMs);
+        return vectors;
+      } catch (err) {
+        if (!(err instanceof HttpException)) {
+          throw err;
+        }
+        const status = err.getStatus();
+        const shouldRetry =
+          (status === HttpStatus.TOO_MANY_REQUESTS ||
+            status === HttpStatus.SERVICE_UNAVAILABLE) &&
+          attempt < MAX_RETRIES;
+
+        if (!shouldRetry) {
+          if (
+            status === HttpStatus.TOO_MANY_REQUESTS &&
+            attempt >= MAX_RETRIES
+          ) {
+            throw new HttpException(
+              'Embedding provider rate limit exceeded after retries',
+              HttpStatus.SERVICE_UNAVAILABLE,
+            );
+          }
+          throw err;
+        }
+
+        const payload = err.getResponse();
+        const retryAfterSec =
+          typeof payload === 'object' &&
+          payload !== null &&
+          'retryAfterSec' in payload
+            ? (payload as { retryAfterSec?: number }).retryAfterSec
+            : undefined;
+
+        const delayMs = this.computeBackoffMs(attempt, retryAfterSec);
+
+        this.logger.warn(
+          `Gemini embedding retry ${attempt + 1}/${MAX_RETRIES} after ${status} (${GeminiOperation.Embed}), delay ${delayMs}ms`,
+        );
+        await sleep(delayMs);
+      }
+    }
+
+    throw new HttpException(
+      'Embedding request failed after retries',
+      HttpStatus.SERVICE_UNAVAILABLE,
+    );
+  }
+
+  private async embedTextsOnce(texts: string[]): Promise<number[][]> {
+    const batch = await this.postEmbedVectorsRequest(texts);
+    if (batch.length === texts.length) {
+      return batch;
+    }
+    if (texts.length === 1) {
+      throw new HttpException(
+        'Invalid embedding response shape',
+        HttpStatus.BAD_GATEWAY,
+      );
+    }
+
+    const out: number[][] = [];
+    for (const t of texts) {
+      const one = await this.postEmbedVectorsRequest([t]);
+      if (one.length !== 1) {
+        throw new HttpException(
+          'Invalid embedding response shape',
+          HttpStatus.BAD_GATEWAY,
+        );
+      }
+      out.push(one[0]);
+    }
+    return out;
+  }
+
+  private async postEmbedVectorsRequest(texts: string[]): Promise<number[][]> {
+    const url = this.buildEmbedUrl();
+    const body = {
+      model: `models/${this.embeddingModel}`,
+      content: {
+        parts: texts.map((text) => ({ text })),
+      },
+    };
+
+    let response: Response;
+
+    try {
+      response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': this.apiKey,
+        },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(this.timeoutMs),
+      });
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : 'Network error calling Gemini';
+      this.logger.error(
+        `Gemini embedding network/timeout (${GeminiOperation.Embed}): ${message}`,
+        err instanceof Error ? err.stack : undefined,
+      );
+      throw new HttpException(
+        'Language model service is temporarily unavailable',
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
+    }
+
+    let json: unknown;
+    try {
+      json = await response.json();
+    } catch {
+      json = null;
+    }
+
+    if (!response.ok) {
+      const retryAfterHeader = response.headers.get('retry-after');
+      throw this.mapGeminiFailure(response.status, json, retryAfterHeader);
+    }
+
+    const usage = this.normalizeUsageMetadata(json);
+    if (usage) {
+      this.aiUsage.recordGeminiTokens(usage);
+    }
+
+    return this.parseEmbeddingVectors(json);
+  }
+
+  private buildEmbedUrl(): string {
+    const base = this.apiBaseUrl.replace(/\/$/, '');
+    const modelId = encodeURIComponent(this.embeddingModel);
+    return `${base}/v1beta/models/${modelId}:embedContent`;
+  }
+
+  private parseEmbeddingVectors(json: unknown): number[][] {
+    if (!json || typeof json !== 'object') {
+      throw new HttpException(
+        'Empty embedding response',
+        HttpStatus.BAD_GATEWAY,
+      );
+    }
+    const j = json as Record<string, unknown>;
+
+    const rowToVec = (row: unknown): number[] => {
+      if (!row || typeof row !== 'object') {
+        throw new HttpException(
+          'Malformed embedding vector',
+          HttpStatus.BAD_GATEWAY,
+        );
+      }
+      const r = row as Record<string, unknown>;
+      const raw = r.values ?? r.value;
+      if (!Array.isArray(raw) || raw.length === 0) {
+        throw new HttpException(
+          'Malformed embedding vector',
+          HttpStatus.BAD_GATEWAY,
+        );
+      }
+      for (const x of raw) {
+        if (typeof x !== 'number' || !Number.isFinite(x)) {
+          throw new HttpException(
+            'Malformed embedding vector',
+            HttpStatus.BAD_GATEWAY,
+          );
+        }
+      }
+      return raw as number[];
+    };
+
+    const plural = j.embeddings;
+    if (Array.isArray(plural)) {
+      return plural.map(rowToVec);
+    }
+
+    if (j.embedding !== undefined) {
+      return [rowToVec(j.embedding)];
+    }
+
+    throw new HttpException(
+      'Embedding response missing vectors',
+      HttpStatus.BAD_GATEWAY,
     );
   }
 
