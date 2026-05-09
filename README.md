@@ -50,32 +50,42 @@ Typical local workflow: start Postgres (`docker compose up -d db` or full stack)
 
 ## Vector DB (Qdrant)
 
-For **local development**, run Qdrant in Docker with a named container and a persistent volume:
+Qdrant for this project is defined as the **`vectordb`** service in **`docker-compose.yml`**. For everyday development with Nest on your host (**`npm run start:dev`**) you only need Postgres and Qdrant from Compose.
+
+### Start Postgres + Qdrant for development
+
+1. **Environment file** — Copy **`.env.example`** to **`.env`** if needed and fill in **`POSTGRES_*`**, **`GEMINI_API_KEY`**, etc.
+
+2. **URLs for Nest running on the host** — While **`db`** and **`vectordb`** run in Compose, their ports are published to **`localhost`**. The Nest process must not use the Compose-internal hostname **`vectordb`** from the host OS.
+
+   - Set **`RAG_VECTOR_DB_URL=http://127.0.0.1:${QUADRANT_PORT:-6333}`** (or **`http://localhost:6333`** if you keep the default **`QUADRANT_PORT`**).
+   - Set **`DATABASE_URL`** to Postgres on the host port Compose publishes (see **`docker-compose.yml`**), for example **`postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@localhost:${POSTGRES_PORT:-5432}/${POSTGRES_DB}?schema=public`** so it matches your **`.env`** values.
+
+   Use **`RAG_VECTOR_DB_URL=http://vectordb:6333`** only when the API runs **inside** the Compose **`app`** container (same Docker network as **`vectordb`**). Otherwise RAG calls fail with **`ENOTFOUND vectordb`**. More detail is in **`.env.example`**.
+
+3. **Start the containers** — From the repository root:
 
 ```
-docker run -d \
-  --name knowledge_hub_quadrant \
-  -p 6333:6333 \
-  -v qdrant_storage:/qdrant/storage \
-  qdrant/qdrant:latest
+docker compose up -d db vectordb
 ```
 
-The API listens on **`http://localhost:6333`** (web UI: **`http://localhost:6333/dashboard`**).
+The **`db`** and **`vectordb`** services use public images; **`--build`** does not apply to them. Use **`docker compose up -d --build …`** when you also start **`app`** from this repo’s **`Dockerfile`** and need a fresh API image (for example **`docker compose up -d --build app db vectordb`**).
 
-To verify Qdrant is running, request the collections endpoint; you should see JSON (often `{"collections":[]}` until RAG indexing creates a collection):
+4. **Check status** (optional): **`docker compose ps`** — wait until **`db`** and **`vectordb`** are healthy.
+
+5. **Sanity check** — API/UI: **`http://localhost:6333/dashboard`** (use **`QUADRANT_PORT`** if you changed it). Collections endpoint:
 
 ```
-curl -s http://localhost:6333/collections | head
+curl -s "http://127.0.0.1:${QUADRANT_PORT:-6333}/collections" | head
 ```
 
-When the Nest app runs **on your machine** (not inside Compose), point **`RAG_VECTOR_DB_URL`** in **`.env`** to **`http://localhost:6333`** (Compose services use **`http://vectordb:6333`** instead). See **`.env.example`**.
+Do not run a second Qdrant with **`docker run -p 6333:6333`** while Compose **`vectordb`** already binds the same host port.
 
 ## Running application
 
 ```
 npm start
 ```
-
 After starting the app on port (4000 as default) you can open
 in your browser OpenAPI documentation by typing http://localhost:4000/doc/.
 For more information about OpenAPI/Swagger please visit https://swagger.io/.
@@ -178,7 +188,6 @@ Modern **Docker Desktop** ships **Docker Compose V2** as a CLI **plugin**. You r
 ```bash
 docker compose up --build
 ```
-
 The legacy standalone command **`docker-compose`** (with a **hyphen**) is a separate binary and is often **not** installed. If your shell reports `command not found: docker-compose`, use **`docker compose`** instead. The two forms are equivalent for typical workflows, but only the plugin is guaranteed with current Docker Desktop installs.
 
 To stop and remove containers:
@@ -186,7 +195,6 @@ To stop and remove containers:
 ```bash
 docker compose down
 ```
-
 ### Verifying health checks (`docker compose ps`)
 
 **`app`**, **`db`**, and **`vectordb`** (Qdrant) define `healthcheck` in `docker-compose.yml`. After the stack is running, check that Docker reports them as healthy:
@@ -195,7 +203,6 @@ docker compose down
 docker compose up --build -d
 docker compose ps
 ```
-
 In the **STATUS** (or **State**) column you should see **`healthy`** for **`app`**, **`db`**, and **`vectordb`** once probes have succeeded (allow a short time after startup; **`app`** uses `start_period: 40s`). If you see **`starting`**, wait and run `docker compose ps` again.
 
 This matches the course criterion that health checks are configured for these services. Optional detail:
@@ -205,7 +212,6 @@ docker inspect --format '{{.State.Health.Status}}' "$(docker compose ps -q app)"
 docker inspect --format '{{.State.Health.Status}}' "$(docker compose ps -q db)"
 docker inspect --format '{{.State.Health.Status}}' "$(docker compose ps -q vectordb)"
 ```
-
 Expected output for each: **`healthy`**.
 
 ### Verifying the application container runs as non-root
@@ -219,7 +225,6 @@ docker compose up --build -d
 docker compose exec app whoami
 docker compose exec app id
 ```
-
 You should see **`nestjs`** (or another **non-root** user) and a **UID that is not `0`** (not `root`).
 
 From the host, without exec:
@@ -227,7 +232,6 @@ From the host, without exec:
 ```bash
 docker inspect --format '{{.Config.User}}' "$(docker compose ps -q app)"
 ```
-
 A **non-empty** value (e.g. `nestjs`) indicates the default user for the container is not root.
 
 To check the image directly after **`docker pull`** (or substitute your local tag, e.g. `nodejs-2026q1-knowledge-hub-app:latest`):
@@ -235,7 +239,6 @@ To check the image directly after **`docker pull`** (or substitute your local ta
 ```bash
 docker run --rm vlleo/nodejs-2026q1-knowledge-hub-app:latest id
 ```
-
 Again, **UID must not be `0`**.
 
 ### Adminer (optional, local PostgreSQL UI)
@@ -248,7 +251,6 @@ Adminer is **not** started by default. It is isolated behind the Compose **`debu
 ```bash
 docker compose --profile debug up --build
 ```
-
 3. Open Adminer in the browser: **`http://localhost:<ADMINER_PORT>/`** (for example `http://localhost:8080/` when `ADMINER_PORT=8080`).
 4. Log in to PostgreSQL:
 
@@ -274,59 +276,47 @@ Run commands from a new terminal in the project root.
 ```
 npm run test:unit
 ```
-
 ```
 npm run test:unit:watch
 ```
-
 ```
 npm run test:unit:ui
 ```
-
 ### Coverage (Vitest)
 
 ```
 npm run test:coverage
 ```
-
 ```
 npm run test:coverage:open
 ```
-
 ### E2E / auth suites (Jest)
 
 ```
 npm run test:e2e
 ```
-
 ```
 npm run test:auth
 ```
-
 ```
 npm run test:refresh
 ```
-
 ```
 npm run test:rbac
 ```
-
 ### Run all test suites
 
 ```
 npm run test
 ```
-
 ### Auto-fix and format
 
 ```
 npm run lint
 ```
-
 ```
 npm run format
 ```
-
 ### Debugging in VSCode
 
 Press <kbd>F5</kbd> to debug.
