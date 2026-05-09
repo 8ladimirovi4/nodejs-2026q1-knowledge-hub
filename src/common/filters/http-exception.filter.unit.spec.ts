@@ -233,6 +233,46 @@ describe('HttpExceptionFilter', () => {
     );
   });
 
+  it('maps Prisma connectivity errors to 503 Database is unavailable', () => {
+    const host = createHost('/articles', response);
+    const err = Object.assign(new Error("Can't reach database server"), {
+      code: 'P1001',
+    });
+
+    filter.catch(err, host);
+
+    expect(response.status).toHaveBeenCalledWith(
+      HttpStatus.SERVICE_UNAVAILABLE,
+    );
+    expect(response.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        statusCode: HttpStatus.SERVICE_UNAVAILABLE,
+        message: 'Database is unavailable',
+        error: 'SERVICE_UNAVAILABLE',
+        path: '/articles',
+      }),
+    );
+  });
+
+  it('maps pg/network errors with code ECONNREFUSED to 503 Database is unavailable', () => {
+    const host = createHost('/api', response);
+    const err = Object.assign(new Error('connect ECONNREFUSED'), {
+      code: 'ECONNREFUSED',
+    });
+
+    filter.catch(err, host);
+
+    expect(response.status).toHaveBeenCalledWith(
+      HttpStatus.SERVICE_UNAVAILABLE,
+    );
+    expect(response.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        statusCode: HttpStatus.SERVICE_UNAVAILABLE,
+        message: 'Database is unavailable',
+      }),
+    );
+  });
+
   it('formats unknown errors as assignment-compliant 500 response', () => {
     const host = createHost('/articles', response);
 

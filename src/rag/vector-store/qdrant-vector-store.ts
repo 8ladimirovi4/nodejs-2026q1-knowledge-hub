@@ -257,7 +257,7 @@ export class QdrantVectorStore extends VectorStorePort {
       detail = `${detail}; cause: ${causeMsg}`;
     }
     this.logger.warn(`Qdrant request failed: ${detail}`);
-    throw new ServiceUnavailableException('Vector database is unavailable');
+    throw new ServiceUnavailableException('Database is unavailable');
   }
 
   private errorCauseMessage(err: unknown): string | undefined {

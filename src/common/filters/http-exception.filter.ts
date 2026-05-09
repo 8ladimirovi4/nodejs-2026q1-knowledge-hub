@@ -75,11 +75,53 @@ export class HttpExceptionFilter implements ExceptionFilter {
       return { status, message, error };
     }
 
+    if (this.isDatabaseUnavailableError(exception)) {
+      return {
+        status: HttpStatus.SERVICE_UNAVAILABLE,
+        message: 'Database is unavailable',
+        error:
+          this.httpStatusName(HttpStatus.SERVICE_UNAVAILABLE) ??
+          'Service Unavailable',
+      };
+    }
+
     return {
       status: HttpStatus.INTERNAL_SERVER_ERROR,
       message: 'An unexpected error occurred',
       error: 'Internal Server Error',
     };
+  }
+
+  private isDatabaseUnavailableError(exception: unknown): boolean {
+    if (exception === null || typeof exception !== 'object') {
+      return false;
+    }
+    const e = exception as {
+      code?: unknown;
+      name?: unknown;
+    };
+    const prismaConnectivityCodes = new Set([
+      'P1001',
+      'P1002',
+      'P1017',
+      'P2024',
+    ]);
+    if (typeof e.code === 'string' && prismaConnectivityCodes.has(e.code)) {
+      return true;
+    }
+    if (e.name === 'PrismaClientInitializationError') {
+      return true;
+    }
+    const nodeNetworkCodes = new Set([
+      'ECONNREFUSED',
+      'ENOTFOUND',
+      'ETIMEDOUT',
+      'ECONNRESET',
+    ]);
+    if (typeof e.code === 'string' && nodeNetworkCodes.has(e.code)) {
+      return true;
+    }
+    return false;
   }
 
   private httpStatusName(status: number): string | undefined {
