@@ -4,6 +4,7 @@ import { ForbiddenError, NotFoundError } from 'src/common/errors';
 import { ArticleStatus as PrismaArticleStatus } from '@prisma/client';
 import { ArticleService } from './app.service';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { VECTOR_STORE } from 'src/rag/vector-store/vector-store.port';
 import { ArticleStatus, UserRole } from 'src/storage/domain.types';
 
 function createPrismaMock() {
@@ -25,6 +26,7 @@ function createPrismaMock() {
 describe('ArticleService', () => {
   let service: ArticleService;
   let prismaMock: ReturnType<typeof createPrismaMock>;
+  let vectorStoreMock: { deleteByArticleId: ReturnType<typeof vi.fn> };
   const makeArticleRow = (
     overrides?: Partial<{
       id: string;
@@ -52,12 +54,19 @@ describe('ArticleService', () => {
 
   beforeEach(async () => {
     prismaMock = createPrismaMock();
+    vectorStoreMock = {
+      deleteByArticleId: vi.fn().mockResolvedValue(undefined),
+    };
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ArticleService,
         {
           provide: PrismaService,
           useValue: prismaMock as unknown as PrismaService,
+        },
+        {
+          provide: VECTOR_STORE,
+          useValue: vectorStoreMock,
         },
         {
           provide: Logger,
@@ -449,6 +458,7 @@ describe('ArticleService', () => {
         ),
       ).resolves.toBeUndefined();
       expect(prismaMock.article.delete).toHaveBeenCalledWith({ where: { id } });
+      expect(vectorStoreMock.deleteByArticleId).toHaveBeenCalledWith(id);
     });
 
     it('deletes article when actor is owner', async () => {
@@ -464,6 +474,7 @@ describe('ArticleService', () => {
 
       await expect(service.remove(owner, id)).resolves.toBeUndefined();
       expect(prismaMock.article.delete).toHaveBeenCalledWith({ where: { id } });
+      expect(vectorStoreMock.deleteByArticleId).toHaveBeenCalledWith(id);
     });
   });
 });

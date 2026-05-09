@@ -9,6 +9,8 @@ import { QdrantClient } from '@qdrant/js-client-rest';
 import { resolveEmbeddingVectorDimensions } from './embedding-model-vector-size';
 import {
   RagVectorPayload,
+  RagVectorSearchFilter,
+  RagVectorSearchHit,
   RagVectorUpsertPoint,
   VectorStorePort,
 } from './vector-store.port';
@@ -114,6 +116,117 @@ export class QdrantVectorStore extends VectorStorePort {
     } catch (err) {
       this.unwrapAndThrow(err);
     }
+  }
+
+  async searchSimilar(
+    vector: number[],
+    limit: number,
+    filter?: RagVectorSearchFilter,
+  ): Promise<RagVectorSearchHit[]> {
+    if (vector.length !== this.vectorSize) {
+      throw new InternalServerErrorException(
+        `Query embedding dimension mismatch: expected ${this.vectorSize}, got ${vector.length}`,
+      );
+    }
+
+    const limitClamped = Math.min(Math.max(limit, 1), 20);
+
+    try {
+      const raw = await this.client.search(this.collection, {
+        vector,
+        limit: limitClamped,
+        filter: this.buildSearchFilter(filter),
+        with_payload: true,
+      });
+
+      const points = Array.isArray(raw)
+        ? (raw as Array<{ score?: number; payload?: unknown }>)
+        : [];
+      const hits: RagVectorSearchHit[] = [];
+      for (const p of points) {
+        const payload = this.parseStoredPayload(p.payload);
+        if (payload === null) {
+          continue;
+        }
+        const score =
+          typeof p.score === 'number' && Number.isFinite(p.score) ? p.score : 0;
+        hits.push({ score, payload });
+      }
+      return hits;
+    } catch (err) {
+      this.unwrapAndThrow(err);
+    }
+  }
+
+  private buildSearchFilter(
+    filter?: RagVectorSearchFilter,
+  ): { must: object[] } | undefined {
+    if (!filter) {
+      return undefined;
+    }
+    const must: object[] = [];
+    if (filter.articleStatus !== undefined && filter.articleStatus !== '') {
+      must.push({
+        key: 'articleStatus',
+        match: { value: filter.articleStatus },
+      });
+    }
+    if (filter.categoryId !== undefined && filter.categoryId !== null) {
+      must.push({
+        key: 'categoryId',
+        match: { value: filter.categoryId },
+      });
+    }
+    if (filter.tagsAllOf !== undefined) {
+      for (const tag of filter.tagsAllOf) {
+        const t = tag.trim();
+        if (t.length > 0) {
+          must.push({ key: 'tagNames', match: { value: t } });
+        }
+      }
+    }
+    return must.length > 0 ? { must } : undefined;
+  }
+
+  private parseStoredPayload(raw: unknown): RagVectorPayload | null {
+    if (!raw || typeof raw !== 'object') {
+      return null;
+    }
+    const o = raw as Record<string, unknown>;
+    const articleId = o.articleId;
+    const articleTitle = o.articleTitle;
+    const chunkIndex = o.chunkIndex;
+    const chunkText = o.chunkText;
+    if (
+      typeof articleId !== 'string' ||
+      typeof articleTitle !== 'string' ||
+      typeof chunkIndex !== 'number' ||
+      !Number.isFinite(chunkIndex) ||
+      typeof chunkText !== 'string'
+    ) {
+      return null;
+    }
+    const out: RagVectorPayload = {
+      articleId,
+      articleTitle,
+      chunkIndex,
+      chunkText,
+    };
+    if (typeof o.articleStatus === 'string') {
+      out.articleStatus = o.articleStatus;
+    }
+    if (o.categoryId === null || typeof o.categoryId === 'string') {
+      out.categoryId = o.categoryId as string | null;
+    }
+    if (Array.isArray(o.tagNames)) {
+      const names = o.tagNames.filter(
+        (x): x is string => typeof x === 'string',
+      );
+      if (names.length > 0) {
+        out.tagNames = names;
+      }
+    }
+    return out;
   }
 
   private serializePayload(payload: RagVectorPayload) {

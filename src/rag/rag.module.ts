@@ -12,10 +12,9 @@ import { RerankService } from './rerank.service';
 import { VECTOR_STORE } from './vector-store/vector-store.port';
 import { QdrantVectorStore } from './vector-store/qdrant-vector-store';
 import { AiModule } from 'src/ai/ai.module';
-import { ArticleModule } from 'src/article/app.module';
 
 @Module({
-  imports: [AiModule, ArticleModule],
+  imports: [AiModule],
   controllers: [RagController],
   providers: [
     QdrantVectorStore,
@@ -29,6 +28,10 @@ import { ArticleModule } from 'src/article/app.module';
     RagIndexingService,
     RagRetrievalService,
     RerankService,
+  ],
+  exports: [
+    QdrantVectorStore,
+    { provide: VECTOR_STORE, useExisting: QdrantVectorStore },
   ],
 })
 export class RagModule {}

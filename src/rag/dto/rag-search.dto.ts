@@ -13,6 +13,8 @@ import {
   Min,
 } from 'class-validator';
 
+const SEARCH_LIMIT_MAX = 20;
+
 const limitDefaultTransform = ({ value }: { value: unknown }) => {
   if (value === undefined || value === null || value === '') {
     return 5;
@@ -35,17 +37,17 @@ export class RagSearchDto {
 
   @ApiPropertyOptional({
     description:
-      'Maximum number of hits to return. Omitted values default to 5; upper bound is 20.',
+      'Maximum number of hits to return. Omitted values default to 5; maximum 20.',
     default: 5,
     minimum: 1,
-    maximum: 20,
+    maximum: SEARCH_LIMIT_MAX,
     example: 5,
   })
   @Transform(limitDefaultTransform)
   @IsInt()
   @Min(1)
-  @Max(20)
-  limit?: number;
+  @Max(SEARCH_LIMIT_MAX)
+  limit!: number;
 
   @ApiPropertyOptional({
     enum: ArticleStatus,

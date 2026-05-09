@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { ForbiddenError, NotFoundError } from 'src/common/errors';
 import {
   applyOptionalPagination,
@@ -19,10 +19,17 @@ import { randomUUID } from 'crypto';
 import { UpdateArticleDto } from './dto/update-article.dto';
 import type { JwtAccessPayload } from 'src/auth/types/jwt-access-payload.interface';
 import { UserRole } from 'src/storage/domain.types';
+import {
+  VECTOR_STORE,
+  type VectorStorePort,
+} from 'src/rag/vector-store/vector-store.port';
 
 @Injectable()
 export class ArticleService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Inject(VECTOR_STORE) private readonly vectorStore: VectorStorePort,
+  ) {}
 
   async findAll(
     query: FindArticlesQueryDto,
@@ -162,6 +169,7 @@ export class ArticleService {
     this.assertCanModifyArticle(actor, exists.authorId);
 
     await this.prisma.article.delete({ where: { id } });
+    await this.vectorStore.deleteByArticleId(id);
   }
 
   private assertCanModifyArticle(
