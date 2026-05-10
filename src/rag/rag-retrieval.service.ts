@@ -1,5 +1,7 @@
 import { HttpException, HttpStatus, Inject, Injectable } from '@nestjs/common';
 import { RagSearchDto } from './dto/rag-search.dto';
+import { HybridMergeService } from './hybrid-merge.service';
+import { LexicalSearchService } from './lexical-search.service';
 import {
   VECTOR_STORE,
   VectorStorePort,
@@ -23,12 +25,18 @@ export type RagSearchResponseBody = {
 export class RagRetrievalService {
   constructor(
     private readonly gemini: GeminiService,
+    private readonly lexicalSearch: LexicalSearchService,
+    private readonly hybridMerge: HybridMergeService,
     @Inject(VECTOR_STORE) private readonly vectorStore: VectorStorePort,
   ) {}
 
   async searchRetrieval(dto: RagSearchDto): Promise<RagSearchResponseBody> {
     const queryText = dto.query.trim();
-    const embeddingRows = await this.gemini.embedTexts([queryText]);
+    const vectorFilter = this.buildVectorFilter(dto);
+    const [embeddingRows, lexicalHits] = await Promise.all([
+      this.gemini.embedTexts([queryText]),
+      this.lexicalSearch.search(queryText, dto.limit, vectorFilter),
+    ]);
     const queryVector = embeddingRows[0];
     if (queryVector === undefined) {
       throw new HttpException(
@@ -36,19 +44,26 @@ export class RagRetrievalService {
         HttpStatus.BAD_GATEWAY,
       );
     }
-
-    const vectorFilter = this.buildVectorFilter(dto);
-    const hits = await this.vectorStore.searchSimilar(
+    const semanticHits = await this.vectorStore.searchSimilar(
       queryVector,
       dto.limit,
       vectorFilter,
     );
-
-    return {
-      results: hits.map((h) => ({
+    const mergedHits = this.hybridMerge.mergeRank(
+      semanticHits.map((h) => ({
         articleId: h.payload.articleId,
         articleTitle: h.payload.articleTitle,
         chunk: h.payload.chunkText,
+        score: h.score,
+      })),
+      lexicalHits,
+      dto.limit,
+    );
+    return {
+      results: mergedHits.map((h) => ({
+        articleId: h.articleId,
+        articleTitle: h.articleTitle,
+        chunk: h.chunk,
         similarity: h.score,
       })),
     };
