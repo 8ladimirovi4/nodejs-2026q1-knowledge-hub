@@ -2,6 +2,7 @@ import { HttpException, HttpStatus, Inject, Injectable } from '@nestjs/common';
 import { RagSearchDto } from './dto/rag-search.dto';
 import { HybridMergeService } from './hybrid-merge.service';
 import { LexicalSearchService } from './lexical-search.service';
+import { RerankService } from './rerank.service';
 import {
   VECTOR_STORE,
   VectorStorePort,
@@ -27,15 +28,17 @@ export class RagRetrievalService {
     private readonly gemini: GeminiService,
     private readonly lexicalSearch: LexicalSearchService,
     private readonly hybridMerge: HybridMergeService,
+    private readonly rerank: RerankService,
     @Inject(VECTOR_STORE) private readonly vectorStore: VectorStorePort,
   ) {}
 
   async searchRetrieval(dto: RagSearchDto): Promise<RagSearchResponseBody> {
     const queryText = dto.query.trim();
     const vectorFilter = this.buildVectorFilter(dto);
+    const poolSize = this.rerank.poolSizeForLimit(dto.limit);
     const [embeddingRows, lexicalHits] = await Promise.all([
       this.gemini.embedTexts([queryText]),
-      this.lexicalSearch.search(queryText, dto.limit, vectorFilter),
+      this.lexicalSearch.search(queryText, poolSize, vectorFilter),
     ]);
     const queryVector = embeddingRows[0];
     if (queryVector === undefined) {
@@ -46,7 +49,7 @@ export class RagRetrievalService {
     }
     const semanticHits = await this.vectorStore.searchSimilar(
       queryVector,
-      dto.limit,
+      poolSize,
       vectorFilter,
     );
     const mergedHits = this.hybridMerge.mergeRank(
@@ -57,15 +60,10 @@ export class RagRetrievalService {
         score: h.score,
       })),
       lexicalHits,
-      dto.limit,
+      poolSize,
     );
     return {
-      results: mergedHits.map((h) => ({
-        articleId: h.articleId,
-        articleTitle: h.articleTitle,
-        chunk: h.chunk,
-        similarity: h.score,
-      })),
+      results: this.rerank.rerank(queryText, mergedHits, dto.limit),
     };
   }
 

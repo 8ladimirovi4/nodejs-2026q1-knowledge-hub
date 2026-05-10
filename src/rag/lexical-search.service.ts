@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { type Prisma } from '@prisma/client';
+import { tokenizeSearchText } from 'src/common/text/tokenize.util';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { domainArticleStatusToPrisma } from 'src/storage/prisma-mappers';
 import { ArticleStatus } from 'src/storage/domain.types';
@@ -26,7 +27,7 @@ export class LexicalSearchService {
       return [];
     }
 
-    const tokens = this.tokenize(queryText);
+    const tokens = tokenizeSearchText(queryText);
     if (tokens.length === 0) {
       return [];
     }
@@ -121,14 +122,6 @@ export class LexicalSearchService {
       default:
         return undefined;
     }
-  }
-
-  private tokenize(query: string): string[] {
-    return query
-      .toLowerCase()
-      .split(/[^\p{L}\p{N}]+/u)
-      .map((t) => t.trim())
-      .filter((t) => t.length >= 2);
   }
 
   private scoreArticle(
