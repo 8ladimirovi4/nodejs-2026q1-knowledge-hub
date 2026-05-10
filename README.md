@@ -21,32 +21,116 @@ cp .env.example .env
 npm install
 ```
 
-## Database (PostgreSQL + Prisma)
+## Docker
 
-The API uses **PostgreSQL** via **Prisma ORM**. Connection string is read from **`DATABASE_URL`** in `.env` (see `.env.example`). Copy `.env.example` to `.env` and set variables; for a local app talking to Postgres in Docker, use host **`localhost`** and port **`5432`** (when the `db` service publishes `5432:5432`).
+The stack is defined in `docker-compose.yml` (NestJS app + PostgreSQL). Copy `.env.example` to `.env` and adjust variables as needed.
 
-### npm scripts (`package.json`)
+Set **`PORT`** in `.env` for the HTTP port; it is used both by the application and for the host port mapping (default **4000**).
+
+Set **`ADMINER_PORT`** in `.env` for the **host** port of [Adminer](https://www.adminer.org/) when you use the `debug` Compose profile (default **8080**). The container still listens on port **8080** internally; Compose publishes it as `ADMINER_PORT` on your machine.
+
+### Docker Hub image
+
+The production application image is published on Docker Hub:
+
+- **Repository:** [vlleo/nodejs-2026q1-knowledge-hub-app](https://hub.docker.com/r/vlleo/nodejs-2026q1-knowledge-hub-app)
+- **Pull:** `docker pull vlleo/nodejs-2026q1-knowledge-hub-app:latest`
+
+To run the pre-built image together with PostgreSQL, point the `app` service in `docker-compose.yml` at this image (`image: …`) instead of `build`, keeping the same `.env` and `db` service as in this repository.
+
+### `docker compose` vs `docker-compose`
+
+Modern **Docker Desktop** ships **Docker Compose V2** as a CLI **plugin**. You run it with a **space**:
+
+```bash
+docker compose up --build
+```
+
+The legacy standalone command **`docker-compose`** (with a **hyphen**) is a separate binary and is often **not** installed. If your shell reports `command not found: docker-compose`, use **`docker compose`** instead. The two forms are equivalent for typical workflows, but only the plugin is guaranteed with current Docker Desktop installs.
+
+To stop and remove containers:
+
+```bash
+docker compose down
+```
+
+### Verifying health checks (`docker compose ps`)
+
+**`app`**, **`db`**, and **`vectordb`** (Qdrant) define `healthcheck` in `docker-compose.yml`. After the stack is running, check that Docker reports them as healthy:
+
+```bash
+docker compose up --build -d
+docker compose ps
+```
+
+In the **STATUS** (or **State**) column you should see **`healthy`** for **`app`**, **`db`**, and **`vectordb`** once probes have succeeded (allow a short time after startup; **`app`** uses `start_period: 40s`). If you see **`starting`**, wait and run `docker compose ps` again.
+
+This matches the course criterion that health checks are configured for these services. Optional detail:
+
+```bash
+docker inspect --format '{{.State.Health.Status}}' "$(docker compose ps -q app)"
+docker inspect --format '{{.State.Health.Status}}' "$(docker compose ps -q db)"
+docker inspect --format '{{.State.Health.Status}}' "$(docker compose ps -q vectordb)"
+```
+
+Expected output for each: **`healthy`**.
+
+### Verifying the application container runs as non-root
+
+The production **`Dockerfile`** creates user **`nestjs`** and ends with **`USER nestjs`**, so the API process must not run as **root** (course criterion: final application image runs as non-root).
+
+After Compose has started **`app`**:
+
+```bash
+docker compose up --build -d
+docker compose exec app whoami
+docker compose exec app id
+```
+
+You should see **`nestjs`** (or another **non-root** user) and a **UID that is not `0`** (not `root`).
+
+From the host, without exec:
+
+```bash
+docker inspect --format '{{.Config.User}}' "$(docker compose ps -q app)"
+```
+
+A **non-empty** value (e.g. `nestjs`) indicates the default user for the container is not root.
+
+To check the image directly after **`docker pull`** (or substitute your local tag, e.g. `nodejs-2026q1-knowledge-hub-app:latest`):
+
+```bash
+docker run --rm vlleo/nodejs-2026q1-knowledge-hub-app:latest id
+```
+
+Again, **UID must not be `0`**.
+
+### Adminer (optional, local PostgreSQL UI)
+
+Adminer is **not** started by default. It is isolated behind the Compose **`debug`** profile so the usual `docker compose up` stack is only **app** + **db**.
+
+1. Ensure `.env` exists (from `.env.example`) and set **`ADMINER_PORT`** if you do not want the default **8080** on the host.
+2. Start the stack with the profile:
+
+```bash
+docker compose --profile debug up --build
+```
+
+3. Open Adminer in the browser: **`http://localhost:<ADMINER_PORT>/`** (for example `http://localhost:8080/` when `ADMINER_PORT=8080`).
+4. Log in to PostgreSQL:
 
 
-| Script        | Command           | Purpose                                                                                                                                        |
-| --------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **`db:seed`** | `npm run db:seed` | Runs`npx prisma db seed` — fills the database with initial data from `prisma/seed.ts` (requires applied migrations and valid `DATABASE_URL`). |
+| Field        | Value                                                                     |
+| -------------- | --------------------------------------------------------------------------- |
+| **System**   | PostgreSQL                                                                |
+| **Server**   | `db` (Docker Compose service name for PostgreSQL on the internal network) |
+| **Username** | same as**`POSTGRES_USER`** in `.env`                                      |
+| **Password** | same as**`POSTGRES_PASSWORD`** in `.env`                                  |
+| **Database** | same as**`POSTGRES_DB`** in `.env`                                        |
 
-### Prisma CLI (run with `npx`)
+Adminer is intended for **local debugging** (inspect schema, run SQL). After running **Prisma migrations** (and optionally **`npm run db:seed`**), tables and data will appear here.
 
-These are not separate npm scripts in this repo; use **`npx prisma …`** from the project root (with `.env` loaded — Prisma reads `DATABASE_URL` via `prisma.config.ts`).
-
-
-| Command                     | When to use                                                                               |
-| ----------------------------- | ------------------------------------------------------------------------------------------- |
-| `npx prisma generate`       | After changing`prisma/schema.prisma` — regenerates the Prisma client (`@prisma/client`). |
-| `npx prisma migrate dev`    | **Development:** create and apply a new migration from schema changes.                    |
-| `npx prisma migrate deploy` | **CI/production:** apply existing migrations from `prisma/migrations/`.                   |
-| `npx prisma migrate reset`  | **Dev only:** drops the database, reapplies all migrations, runs seed (destructive).      |
-| `npx prisma db seed`        | Same as**`npm run db:seed`** — seed data.                                                |
-| `npx prisma studio`         | Open a browser UI to browse/edit tables.                                                  |
-
-Typical local workflow: start Postgres (`docker compose up -d db` or full stack) → set **`DATABASE_URL`** → `npx prisma migrate dev` → optional `npm run db:seed` → `npm run start:dev`.
+Open the API docs at `http://localhost:<PORT>/doc/` (for example `http://localhost:4000/doc/` when `PORT=4000`).
 
 ## Vector DB (Qdrant)
 
@@ -55,14 +139,12 @@ Qdrant for this project is defined as the **`vectordb`** service in **`docker-co
 ### Start Postgres + Qdrant for development
 
 1. **Environment file** — Copy **`.env.example`** to **`.env`** if needed and fill in **`POSTGRES_*`**, **`GEMINI_API_KEY`**, etc.
-
 2. **URLs for Nest running on the host** — While **`db`** and **`vectordb`** run in Compose, their ports are published to **`localhost`**. The Nest process must not use the Compose-internal hostname **`vectordb`** from the host OS.
 
    - Set **`RAG_VECTOR_DB_URL=http://127.0.0.1:${QUADRANT_PORT:-6333}`** (or **`http://localhost:6333`** if you keep the default **`QUADRANT_PORT`**).
    - Set **`DATABASE_URL`** to Postgres on the host port Compose publishes (see **`docker-compose.yml`**), for example **`postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@localhost:${POSTGRES_PORT:-5432}/${POSTGRES_DB}?schema=public`** so it matches your **`.env`** values.
 
    Use **`RAG_VECTOR_DB_URL=http://vectordb:6333`** only when the API runs **inside** the Compose **`app`** container (same Docker network as **`vectordb`**). Otherwise RAG calls fail with **`ENOTFOUND vectordb`**. More detail is in **`.env.example`**.
-
 3. **Start the containers** — From the repository root:
 
 ```
@@ -72,20 +154,31 @@ docker compose up -d db vectordb
 The **`db`** and **`vectordb`** services use public images; **`--build`** does not apply to them. Use **`docker compose up -d --build …`** when you also start **`app`** from this repo’s **`Dockerfile`** and need a fresh API image (for example **`docker compose up -d --build app db vectordb`**).
 
 4. **Check status** (optional): **`docker compose ps`** — wait until **`db`** and **`vectordb`** are healthy.
-
 5. **Sanity check** — API/UI: **`http://localhost:6333/dashboard`** (use **`QUADRANT_PORT`** if you changed it). Collections endpoint:
 
 ```
 curl -s "http://127.0.0.1:${QUADRANT_PORT:-6333}/collections" | head
 ```
 
+**Vector DB and RAG-related variables** (see **`.env.example`**):
+
+
+| Variable                             | Purpose                                                                                                                                                                                           |
+| -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`RAG_VECTOR_DB_PROVIDER`**         | Vector backend; only **`qdrant`** is supported. If unset, defaults to **`qdrant`**.                                                                                                                  |
+| **`RAG_VECTOR_DB_URL`**                | Base HTTP URL of the Qdrant API (**required**). **`http://vectordb:6333`** when the API runs in Compose; **`http://127.0.0.1:<port>`** when Nest runs on the host (see URL notes in step 2 above). |
+| **`RAG_VECTOR_COLLECTION`**          | Qdrant collection name for indexed chunks (default **`knowledge_hub_articles`**). **`docker-compose.yml`** uses this value for the **`vectordb`** container name default.                         |
+| **`RAG_CHUNK_SIZE`**                   | Target chunk length in **characters** when splitting article text for indexing (default **`800`**).                                                                                                |
+| **`RAG_CHUNK_OVERLAP`**                | Overlap in **characters** between neighbouring chunks (default **`200`**).                                                                                                                       |
+| **`RAG_CONVERSATION_MAX_MESSAGES`**    | Max stored **messages** (user + model turns) per RAG chat **`conversationId`** in process memory (default **`20`**).                                                                              |
+| **`RAG_CHAT_RETRIEVAL_LIMIT`**         | Number of retrieved chunks sent into **`POST /ai/rag/chat`** (default **`5`**, upper bound **`20`**).                                                                                              |
+| **`RAG_EMBEDDING_VECTOR_SIZE`**        | Vector dimension for the Qdrant collection (**e.g. `3072`** with **`gemini-embedding-2`**); must match the embedding model output (can override inferred size from **`GEMINI_EMBEDDING_MODEL`**).      |
+| **`QUADRANT_PORT`**                    | Host port Compose publishes for Qdrant (**`${QUADRANT_PORT:-6333}:6333`**). Handy for **`curl`** and the dashboard URL; the app reads **`RAG_VECTOR_DB_URL`**, not this variable alone.           |
+
 Do not run a second Qdrant with **`docker run -p 6333:6333`** while Compose **`vectordb`** already binds the same host port.
 
-## Running application
+## Running the application
 
-```
-npm start
-```
 After starting the app on port (4000 as default) you can open
 in your browser OpenAPI documentation by typing http://localhost:4000/doc/.
 For more information about OpenAPI/Swagger please visit https://swagger.io/.
@@ -233,108 +326,32 @@ Without **`GEMINI_API_KEY`**, AI routes that call Gemini respond with an interna
 - **Model and API changes:** Model names and free-tier rules can change; update **`GEMINI_MODEL`** and monitor Google’s announcements if a model is deprecated.
 - **Cache and usage data:** Summarize/translate responses are cached in memory (**`AI_CACHE_TTL_SEC`**). **`POST /ai/generate`** dialogue history is stored in memory per **`sessionId`** (bounded by **`AI_CONVERSATION_MAX_PAIRS`** and **`AI_CONVERSATION_IDLE_TTL_SEC`**) and is also lost when the Node process restarts. **`GET /ai/usage`** counters reset when the Node process restarts.
 
-## Docker
+## Database (PostgreSQL + Prisma)
 
-The stack is defined in `docker-compose.yml` (NestJS app + PostgreSQL). Copy `.env.example` to `.env` and adjust variables as needed.
+The API uses **PostgreSQL** via **Prisma ORM**. Connection string is read from **`DATABASE_URL`** in `.env` (see `.env.example`). Copy `.env.example` to `.env` and set variables; for a local app talking to Postgres in Docker, use host **`localhost`** and port **`5432`** (when the `db` service publishes `5432:5432`).
 
-Set **`PORT`** in `.env` for the HTTP port; it is used both by the application and for the host port mapping (default **4000**).
-
-Set **`ADMINER_PORT`** in `.env` for the **host** port of [Adminer](https://www.adminer.org/) when you use the `debug` Compose profile (default **8080**). The container still listens on port **8080** internally; Compose publishes it as `ADMINER_PORT` on your machine.
-
-### Docker Hub image
-
-The production application image is published on Docker Hub:
-
-- **Repository:** [vlleo/nodejs-2026q1-knowledge-hub-app](https://hub.docker.com/r/vlleo/nodejs-2026q1-knowledge-hub-app)
-- **Pull:** `docker pull vlleo/nodejs-2026q1-knowledge-hub-app:latest`
-
-To run the pre-built image together with PostgreSQL, point the `app` service in `docker-compose.yml` at this image (`image: …`) instead of `build`, keeping the same `.env` and `db` service as in this repository.
-
-### `docker compose` vs `docker-compose`
-
-Modern **Docker Desktop** ships **Docker Compose V2** as a CLI **plugin**. You run it with a **space**:
-
-```bash
-docker compose up --build
-```
-The legacy standalone command **`docker-compose`** (with a **hyphen**) is a separate binary and is often **not** installed. If your shell reports `command not found: docker-compose`, use **`docker compose`** instead. The two forms are equivalent for typical workflows, but only the plugin is guaranteed with current Docker Desktop installs.
-
-To stop and remove containers:
-
-```bash
-docker compose down
-```
-### Verifying health checks (`docker compose ps`)
-
-**`app`**, **`db`**, and **`vectordb`** (Qdrant) define `healthcheck` in `docker-compose.yml`. After the stack is running, check that Docker reports them as healthy:
-
-```bash
-docker compose up --build -d
-docker compose ps
-```
-In the **STATUS** (or **State**) column you should see **`healthy`** for **`app`**, **`db`**, and **`vectordb`** once probes have succeeded (allow a short time after startup; **`app`** uses `start_period: 40s`). If you see **`starting`**, wait and run `docker compose ps` again.
-
-This matches the course criterion that health checks are configured for these services. Optional detail:
-
-```bash
-docker inspect --format '{{.State.Health.Status}}' "$(docker compose ps -q app)"
-docker inspect --format '{{.State.Health.Status}}' "$(docker compose ps -q db)"
-docker inspect --format '{{.State.Health.Status}}' "$(docker compose ps -q vectordb)"
-```
-Expected output for each: **`healthy`**.
-
-### Verifying the application container runs as non-root
-
-The production **`Dockerfile`** creates user **`nestjs`** and ends with **`USER nestjs`**, so the API process must not run as **root** (course criterion: final application image runs as non-root).
-
-After Compose has started **`app`**:
-
-```bash
-docker compose up --build -d
-docker compose exec app whoami
-docker compose exec app id
-```
-You should see **`nestjs`** (or another **non-root** user) and a **UID that is not `0`** (not `root`).
-
-From the host, without exec:
-
-```bash
-docker inspect --format '{{.Config.User}}' "$(docker compose ps -q app)"
-```
-A **non-empty** value (e.g. `nestjs`) indicates the default user for the container is not root.
-
-To check the image directly after **`docker pull`** (or substitute your local tag, e.g. `nodejs-2026q1-knowledge-hub-app:latest`):
-
-```bash
-docker run --rm vlleo/nodejs-2026q1-knowledge-hub-app:latest id
-```
-Again, **UID must not be `0`**.
-
-### Adminer (optional, local PostgreSQL UI)
-
-Adminer is **not** started by default. It is isolated behind the Compose **`debug`** profile so the usual `docker compose up` stack is only **app** + **db**.
-
-1. Ensure `.env` exists (from `.env.example`) and set **`ADMINER_PORT`** if you do not want the default **8080** on the host.
-2. Start the stack with the profile:
-
-```bash
-docker compose --profile debug up --build
-```
-3. Open Adminer in the browser: **`http://localhost:<ADMINER_PORT>/`** (for example `http://localhost:8080/` when `ADMINER_PORT=8080`).
-4. Log in to PostgreSQL:
+### npm scripts (`package.json`)
 
 
-| Field        | Value                                                                     |
-| -------------- | --------------------------------------------------------------------------- |
-| **System**   | PostgreSQL                                                                |
-| **Server**   | `db` (Docker Compose service name for PostgreSQL on the internal network) |
-| **Username** | same as**`POSTGRES_USER`** in `.env`                                      |
-| **Password** | same as**`POSTGRES_PASSWORD`** in `.env`                                  |
-| **Database** | same as**`POSTGRES_DB`** in `.env`                                        |
+| Script        | Command           | Purpose                                                                                                                                        |
+| --------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **`db:seed`** | `npm run db:seed` | Runs`npx prisma db seed` — fills the database with initial data from `prisma/seed.ts` (requires applied migrations and valid `DATABASE_URL`). |
 
-Adminer is intended for **local debugging** (inspect schema, run SQL). After running **Prisma migrations** (and optionally **`npm run db:seed`**), tables and data will appear here.
+### Prisma CLI (run with `npx`)
 
-Open the API docs at `http://localhost:<PORT>/doc/` (for example `http://localhost:4000/doc/` when `PORT=4000`).
+These are not separate npm scripts in this repo; use **`npx prisma …`** from the project root (with `.env` loaded — Prisma reads `DATABASE_URL` via `prisma.config.ts`).
+
+
+| Command                     | When to use                                                                               |
+| ----------------------------- | ------------------------------------------------------------------------------------------- |
+| `npx prisma generate`       | After changing`prisma/schema.prisma` — regenerates the Prisma client (`@prisma/client`). |
+| `npx prisma migrate dev`    | **Development:** create and apply a new migration from schema changes.                    |
+| `npx prisma migrate deploy` | **CI/production:** apply existing migrations from `prisma/migrations/`.                   |
+| `npx prisma migrate reset`  | **Dev only:** drops the database, reapplies all migrations, runs seed (destructive).      |
+| `npx prisma db seed`        | Same as**`npm run db:seed`** — seed data.                                                |
+| `npx prisma studio`         | Open a browser UI to browse/edit tables.                                                  |
+
+Typical local workflow: start Postgres (`docker compose up -d db` or full stack) → set **`DATABASE_URL`** → `npx prisma migrate dev` → optional `npm run db:seed` → `npm run start:dev`.
 
 ## Testing
 
@@ -345,47 +362,59 @@ Run commands from a new terminal in the project root.
 ```
 npm run test:unit
 ```
+
 ```
 npm run test:unit:watch
 ```
+
 ```
 npm run test:unit:ui
 ```
+
 ### Coverage (Vitest)
 
 ```
 npm run test:coverage
 ```
+
 ```
 npm run test:coverage:open
 ```
+
 ### E2E / auth suites (Jest)
 
 ```
 npm run test:e2e
 ```
+
 ```
 npm run test:auth
 ```
+
 ```
 npm run test:refresh
 ```
+
 ```
 npm run test:rbac
 ```
+
 ### Run all test suites
 
 ```
 npm run test
 ```
+
 ### Auto-fix and format
 
 ```
 npm run lint
 ```
+
 ```
 npm run format
 ```
+
 ### Debugging in VSCode
 
 Press <kbd>F5</kbd> to debug.
