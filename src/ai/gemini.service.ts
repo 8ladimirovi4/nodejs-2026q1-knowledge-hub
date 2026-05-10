@@ -511,16 +511,16 @@ export class GeminiService {
     if (status === 401 || status === 403) {
       this.logger.error(`Gemini auth error (status ${status}): ${msg}`);
       return new HttpException(
-        'AI provider authentication failed',
-        HttpStatus.INTERNAL_SERVER_ERROR,
+        'Language model service is temporarily unavailable',
+        HttpStatus.SERVICE_UNAVAILABLE,
       );
     }
 
     if (status >= 400 && status < 500) {
       this.logger.warn(`Gemini client error (status ${status}): ${msg}`);
       return new HttpException(
-        'Invalid request to language model',
-        HttpStatus.INTERNAL_SERVER_ERROR,
+        'Language model service is temporarily unavailable',
+        HttpStatus.SERVICE_UNAVAILABLE,
       );
     }
 
