@@ -154,6 +154,75 @@ The sample in **`.env.example`** sets **`GEMINI_MODEL=gemini-2.0-flash`**. You m
 6. Optional: **`POST /ai/generate`** (free-form prompt) supports **short-term conversation memory**. Request body includes **`prompt`** and optional **`sessionId`** (UUID v4). If you omit **`sessionId`**, the server mints one and returns it in **`{ "text": "...", "sessionId": "..." }`**; reuse that **`sessionId`** on follow-up requests so Gemini receives prior turns in the thread. Separate **`sessionId`** values isolate context (for example separate Swagger tabs or topics). Memory is keyed by **`userId` from the JWT** plus **`sessionId`**, stored **in-process** until restart; depth is capped by **`AI_CONVERSATION_MAX_PAIRS`** (pairs), and idle threads are cleared per **`AI_CONVERSATION_IDLE_TTL_SEC`** on the next access (see table above).
 7. **`GET /ai/usage`** returns in-memory counters since process start (totals, per-endpoint counts, optional token aggregates when Gemini returns usage metadata).
 
+### Sample RAG requests
+
+Use a valid access token from **`POST /auth/login`**:
+
+```bash
+TOKEN="<paste_access_token_here>"
+BASE_URL="http://localhost:4000"
+```
+
+1. Build or refresh vector index:
+
+```bash
+curl -X POST "$BASE_URL/ai/rag/index" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "onlyPublished": true
+  }'
+```
+
+2. Run semantic search:
+
+```bash
+curl -X POST "$BASE_URL/ai/rag/search" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "How to prepare for a frontend interview?",
+    "limit": 5
+  }'
+```
+
+3. Ask RAG chat (new conversation):
+
+```bash
+curl -X POST "$BASE_URL/ai/rag/chat" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "question": "What are the key frontend interview principles?"
+  }'
+```
+
+4. Continue same chat (reuse `conversationId` from previous response):
+
+```bash
+curl -X POST "$BASE_URL/ai/rag/chat" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "question": "Summarize in 3 bullet points",
+    "conversationId": "3fa85f64-5717-4562-b3fc-2c963f66afa9"
+  }'
+```
+
+5. (Optional) Read chat history:
+
+```bash
+curl -X GET "$BASE_URL/ai/rag/chat/3fa85f64-5717-4562-b3fc-2c963f66afa9/history" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+6. Remove one article from index:
+
+```bash
+curl -X DELETE "$BASE_URL/ai/rag/index/articles/<articleId>" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
 Without **`GEMINI_API_KEY`**, AI routes that call Gemini respond with an internal configuration error instead of a model result.
 
 ### Known limitations
