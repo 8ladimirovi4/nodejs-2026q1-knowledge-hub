@@ -108,11 +108,11 @@ export class RagIndexingService {
     return t.length > 0 ? t : c;
   }
 
-  removeArticleFromIndex(_id: string) {
-    const article = false;
-    if (!article) {
-      throw new NotFoundError('article not found');
+  async removeArticleFromIndex(id: string): Promise<void> {
+    const hasPoints = await this.vectorStore.hasArticlePoints(id);
+    if (!hasPoints) {
+      throw new NotFoundError('article index entries are not found');
     }
-    return 'remove article from index';
+    await this.vectorStore.deleteByArticleId(id);
   }
 }

@@ -34,6 +34,8 @@ export abstract class VectorStorePort {
 
   abstract deleteByArticleId(articleId: string): Promise<void>;
 
+  abstract hasArticlePoints(articleId: string): Promise<boolean>;
+
   abstract searchSimilar(
     vector: number[],
     limit: number,

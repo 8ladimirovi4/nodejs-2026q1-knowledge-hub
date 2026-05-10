@@ -118,6 +118,28 @@ export class QdrantVectorStore extends VectorStorePort {
     }
   }
 
+  async hasArticlePoints(articleId: string): Promise<boolean> {
+    try {
+      const { exists } = await this.client.collectionExists(this.collection);
+      if (!exists) {
+        return false;
+      }
+
+      const page = await this.client.scroll(this.collection, {
+        limit: 1,
+        with_payload: false,
+        with_vector: false,
+        filter: {
+          must: [{ key: 'articleId', match: { value: articleId } }],
+        },
+      });
+
+      return Array.isArray(page.points) && page.points.length > 0;
+    } catch (err) {
+      this.unwrapAndThrow(err);
+    }
+  }
+
   async searchSimilar(
     vector: number[],
     limit: number,
