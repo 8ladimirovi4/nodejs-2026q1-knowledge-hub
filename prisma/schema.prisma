@@ -64,6 +64,9 @@ model Article {
   comments Comment[]
   tags     Tag[]
 
+  ragIndexedContentHash String?
+  ragIndexedAt          DateTime?
+
   @@index([status])
   @@index([categoryId])
 }

@@ -8,6 +8,8 @@ import { ArticleStatus } from 'src/storage';
 import {
   domainArticleStatusToPrisma,
   prismaArticleToDomain,
+  prismaArticleStatusToDomain,
+  type ArticleWithTags,
 } from 'src/storage/prisma-mappers';
 import {
   VECTOR_STORE,
@@ -15,6 +17,7 @@ import {
   type RagVectorUpsertPoint,
 } from './vector-store/vector-store.port';
 import { ChunkingService } from './chunking.service';
+import { IncrementalIndexService } from './incremental-index.service';
 import { GeminiService } from 'src/ai/gemini.service';
 import { stableChunkPointUuid } from './vector-store/stable-point-uuid';
 
@@ -32,6 +35,7 @@ export class RagIndexingService {
     @Inject(VECTOR_STORE) private readonly vectorStore: VectorStorePort,
     private readonly chunkService: ChunkingService,
     private readonly gemini: GeminiService,
+    private readonly incrementalIndex: IncrementalIndexService,
   ) {}
 
   async createVectorIndex(dto: RagReIndexDto): Promise<RagReindexSummary> {
@@ -56,19 +60,30 @@ export class RagIndexingService {
       this.config.get<string>('RAG_VECTOR_COLLECTION') ??
       'knowledge_hub_articles';
 
+    let indexedArticles = 0;
     let indexedChunks = 0;
 
     for (const row of articles) {
+      const syncPayload = this.vectorSyncFingerprintPayload(row);
+      const { fingerprint, skip } = this.incrementalIndex.fingerprintAnalysis(
+        row.ragIndexedContentHash,
+        syncPayload,
+      );
+      if (skip) {
+        continue;
+      }
+
       const article = prismaArticleToDomain(row);
+
+      indexedArticles += 1;
 
       await this.vectorStore.deleteByArticleId(article.id);
 
-      const fullText = this.indexableArticleText(
-        article.title,
-        article.content,
+      const chunks = this.chunkService.splitIntoChunks(
+        this.indexableArticleText(article.title, article.content),
       );
-      const chunks = this.chunkService.splitIntoChunks(fullText);
       if (chunks.length === 0) {
+        await this.incrementalIndex.markArticleIndexed(article.id, fingerprint);
         continue;
       }
 
@@ -90,13 +105,28 @@ export class RagIndexingService {
 
       await this.vectorStore.upsertPoints(points);
       indexedChunks += points.length;
+
+      await this.incrementalIndex.markArticleIndexed(article.id, fingerprint);
     }
 
     return {
-      indexedArticles: articles.length,
+      indexedArticles,
       indexedChunks,
       vectorCollection,
     };
+  }
+
+  private vectorSyncFingerprintPayload(row: ArticleWithTags): string {
+    const fullText = this.indexableArticleText(row.title, row.content);
+    const sortedTags = row.tags.map((t) => t.name).sort();
+    const status = prismaArticleStatusToDomain(row.status);
+    const parts = [
+      fullText,
+      status,
+      row.categoryId ?? '',
+      sortedTags.join('\u001e'),
+    ];
+    return parts.join('\u001d');
   }
 
   private indexableArticleText(title: string, content: string): string {
@@ -114,5 +144,6 @@ export class RagIndexingService {
       throw new NotFoundError('article index entries are not found');
     }
     await this.vectorStore.deleteByArticleId(id);
+    await this.incrementalIndex.clearArticleIndexState(id);
   }
 }
